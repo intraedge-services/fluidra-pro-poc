@@ -1,0 +1,2 @@
+-- See local repo for full content
+-- Snowflake role hierarchy: DATA_ENGINEER_ROLE, DBT_DEV/TEST/PROD_ROLE, BI_ROLE, ANALYST_ROLE

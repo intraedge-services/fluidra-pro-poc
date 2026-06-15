@@ -1,0 +1,30 @@
+name: 'fluidra_pro_analytics'
+version: '1.0.0'
+config-version: 2
+profile: 'fluidra_pro_analytics'
+model-paths: ["models"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+models:
+  fluidra_pro_analytics:
+    staging:
+      +materialized: view
+      +schema: STAGING
+    intermediate:
+      +materialized: table
+      +schema: INTERMEDIATE
+    dimensions:
+      +materialized: table
+      +schema: DIMENSIONS
+    facts:
+      +materialized: incremental
+      +schema: FACTS
+    marts:
+      +materialized: table
+      +schema: MARTS
+    reporting:
+      +materialized: view
+      +schema: REPORTING
