@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: fluidrapro_raw
+    description: "Fluidra Pro Platform CDC events ingested via Kafka/Snowpipe"
+    database: "{{ env_var('DBT_RAW_DATABASE', 'RAW_DB_PROD') }}"
+    schema: FLUIDRAPRO_RAW
+    tables:
+      - name: raw_dealers_data
+        description: "Raw CDC events from Kafka topic psot_poolpro_inbound"
+        loaded_at_field: EVENT_TIME
+        freshness:
+          warn_after: {count: 2, period: hour}
+          error_after: {count: 6, period: hour}
