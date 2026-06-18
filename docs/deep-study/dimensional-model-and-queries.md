@@ -71,6 +71,53 @@ QUALIFY ROW_NUMBER() OVER (
 
 ## 3. Dimension Tables
 
+### Relationship Map (Foreign Keys)
+
+```
+DIM_DEALER.pro_business_id (PK)
+    │
+    ├──► DIM_CONTACT.pro_business_id (FK)
+    │        └── DIM_CONTACT.pro_contact_id (PK)
+    │
+    ├──► DIM_LOCATION.pro_business_id (FK)
+    │        └── DIM_LOCATION.pro_location_id (PK)
+    │
+    ├──► DIM_DISTRIBUTOR.pro_business_id (FK)
+    │        └── composite PK: (pro_business_id, distributor_name, distributor_account_number)
+    │
+    ├──► DIM_PROGRAM.pro_business_id (FK, also PK — one rewards account per dealer)
+    │
+    ├──► DIM_PROGRAM_OPT_IN.pro_business_id (FK)
+    │        └── composite PK: (pro_business_id, program_name)
+    │
+    ├──► DIM_SUBSCRIPTION.pro_business_id (FK)
+    │        └── DIM_SUBSCRIPTION.subscription_id (PK)
+    │
+    └──► DIM_SALES_REP.sales_rep_email (linked via FCT_LEAD_FUNNEL)
+```
+
+**Data Linkage Challenge:**
+- `pro-contact-master.created` events have NULL `proBusinessId`
+- The link is resolved by matching `proContactId` from standalone contact events
+  to `primaryContact.proContactId` embedded in business-master events
+- Location events (`pro-location-master`) also may lack `proBusinessId` —
+  the link comes from the parent business-master event where the location is nested
+
+### 3.0 BRIDGE_CONTACT_DEALER (resolves contact ↔ dealer link)
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB.DIMENSIONS.BRIDGE_CONTACT_DEALER AS
+-- Source 1: primaryContact embedded in business-master events
+SELECT DISTINCT
+    data_payload:proBusinessId::STRING as pro_business_id,
+    data_payload:primaryContact.proContactId::STRING as pro_contact_id,
+    'PRIMARY_CONTACT' as relationship_type
+FROM ANALYTICS_DB.STAGING.STG_EVENTS_PARSED
+WHERE event_detail_type LIKE '%pro-business-master%'
+  AND data_payload:primaryContact.proContactId IS NOT NULL
+  AND data_payload:proBusinessId IS NOT NULL;
+```
+
 ### 3.1 DIM_DEALER (Slowly Changing Dimension Type 2)
 
 ```sql
@@ -151,14 +198,26 @@ SELECT
 FROM latest_business;
 ```
 
+**Relationships:**
+- `pro_business_id` → links to DIM_CONTACT, DIM_LOCATION, DIM_DISTRIBUTOR, DIM_PROGRAM, DIM_SUBSCRIPTION
+- `fluidra_account_number` → future join key to revenue/PSOT data
+- `crm_lead_id` → join key to Salesforce leads
+
+---
+
 ### 3.2 DIM_CONTACT
+
+**Linkage Note:** Contact events (`pro-contact-master.created`) have NULL `proBusinessId`.
+The link is established via the `primaryContact.proContactId` embedded in business-master events.
+The query below resolves this by extracting contacts from BOTH sources and using the
+business-master's `proBusinessId` as the authoritative link.
 
 ```sql
 CREATE OR REPLACE VIEW ANALYTICS_DB.DIMENSIONS.DIM_CONTACT AS
 WITH contact_from_contact_events AS (
     SELECT
         data_payload:proContactId::STRING as pro_contact_id,
-        data_payload:proBusinessId::STRING as pro_business_id,
+        data_payload:proBusinessId::STRING as pro_business_id_from_event,
         data_payload:contactType::STRING as contact_type,
         data_payload:firstName::STRING as first_name,
         data_payload:lastName::STRING as last_name,
@@ -186,7 +245,7 @@ WITH contact_from_contact_events AS (
 contact_from_business_events AS (
     SELECT
         data_payload:primaryContact.proContactId::STRING as pro_contact_id,
-        data_payload:proBusinessId::STRING as pro_business_id,
+        data_payload:proBusinessId::STRING as pro_business_id_from_event,
         data_payload:primaryContact.contactType::STRING as contact_type,
         data_payload:primaryContact.firstName::STRING as first_name,
         data_payload:primaryContact.lastName::STRING as last_name,
@@ -210,14 +269,49 @@ contact_from_business_events AS (
         PARTITION BY data_payload:primaryContact.proContactId::STRING
         ORDER BY event_time DESC
     ) = 1
+),
+-- Merge both sources, prefer business-master (has proBusinessId)
+merged AS (
+    SELECT * FROM contact_from_business_events
+    UNION ALL
+    SELECT * FROM contact_from_contact_events
+    WHERE pro_contact_id NOT IN (SELECT pro_contact_id FROM contact_from_business_events)
 )
-SELECT * FROM contact_from_contact_events
-WHERE pro_contact_id NOT IN (SELECT pro_contact_id FROM contact_from_business_events)
-UNION ALL
-SELECT * FROM contact_from_business_events;
+SELECT
+    m.pro_contact_id,
+    -- Resolve pro_business_id: use business event link, or fallback to bridge
+    COALESCE(m.pro_business_id_from_event, b.pro_business_id) as pro_business_id,
+    m.contact_type,
+    m.first_name,
+    m.last_name,
+    m.email,
+    m.phone_number,
+    m.login_status,
+    m.username,
+    m.cognito_sub_id,
+    m.web_user_id,
+    m.last_login_date,
+    m.source,
+    m.contact_status,
+    m.created_at,
+    m.created_by,
+    m.last_event_time,
+    m.last_event_type
+FROM merged m
+LEFT JOIN ANALYTICS_DB.DIMENSIONS.BRIDGE_CONTACT_DEALER b
+    ON m.pro_contact_id = b.pro_contact_id
+QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY m.pro_contact_id
+    ORDER BY m.last_event_time DESC
+) = 1;
 ```
 
 ### 3.3 DIM_LOCATION
+
+**Linkage Note:** Locations are embedded within business-master events as
+`primaryBillingLocation` and `primaryShippingLocation`. Each location carries
+a `proLocationId` and is linked back to the dealer via the parent event's `proBusinessId`.
+There is no standalone location event with its own `proBusinessId` — the FK is inherited.
 
 ```sql
 CREATE OR REPLACE VIEW ANALYTICS_DB.DIMENSIONS.DIM_LOCATION AS
