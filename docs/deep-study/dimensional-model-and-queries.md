@@ -1160,9 +1160,42 @@ ORDER BY total_created DESC;
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
----
+### 6.1 Advanced ER Diagram (Interactive)
 
-## 7. Deployment Order
+**[▶ View & Edit Interactive ER Diagram on Mermaid Live](https://mermaid.live/edit#pako:eNq9WW1v2zYQ_iuCP6_AFncb0G-OraTGHDuQnQIDAhCMRMtcJFIjKQeek_--E_ViUqJkxxjWAi3Cu3t473dUjqOQR2T0zRsRMaM4Fjh9Zh78mc0f0MyfLPzAe3__8oUf9cl0tdxMphvvm_c82mHphZwpHCr5PBqSWqymk818tWzEEh5iRTk7IzebrzfB_PZpswq0aELZK4k8xb2ISiXoS6646MN4f9cnj8HqPpg8NFcL8oZFJL1McG3soAKVMFo9btC8VJ9nClSgDJSoIM4YsX66XU-D-aPlAJm_yFDQ7IwT7qab6gT5P_zlZq0BYsKIwIpIj-wJU2fkF_5khu6elkt_oaVBggjpbXPGSGKK1rE1ZKujSy-vET64dv9tMJ_d-w1IpVoBIojkyR78uKe4BnBzV1CGaXUiSMgD8_I1UNco8B-HjE8xwzHonhAc2X6bbPxhr2tzvQhMH5JzeOwywU6YOlJdtSrxBx-qZFrTJrPVKddwHAsS63CdvHUOKPDvi8LTJYs2gb-crYfBTN2dOoFXfvjB-qxW_UDlIXhtvvhzGKMVARvmaX2xhwZxauJqebuaBLP58r4fzNFIbLCa6C-D1WLxANcNg5ltseXuEwVUBJdP7v0zWFa_sKP2Hf7bfNfyIU8zLqkiHt8W4h2AY3lS_Ck6M4uL7oheckkZkRLRyHv8o8PSkBlOST9VKqxy2aEnPKasj5gJmmJxOGmgDtnQFSROod46DOEO6zbZOc-l4ikRKEyw7N4ucUIk6hPeJjmNBEY4DHnOFGJ5-kJEh-2VHBqWQnu3l0KRoqKbgYs7NAh5MSf1qEWS5yI05BVNCTgvzQCCQGZECFf2f5jxrXu6O8DV_O-JbzsF7rosNYAzPFsqpHKbDW7voZAU0-RzyRLymFHFEUxly40nF-nrSgzdkj_rxWYDcrux3oeu92OD4HRkSNWhm6TKsqQ6_YdmDv9ADopD_6WmXy27zVZ1vMYuY9Fzh9tkOFNQLtaejOgvFkhWuidGFlj21tvmVe2w2iehnPeOroHDHQWC6CHXwj0GCfICGqMMH1oZcrKsQaAxy7MzFtaT7Kqg1jc5A9pnSFdRWMWRVZCWotbe3VXT3MCvLzsLxWmOxXHeJvhJqF6TmhX32DNyBMmQboAue04sJ03tai12UgO6UEP_g2AWWYhU76YHxLfojZBXm1CcFJQDwcKmpNDtd53yLCh_52B3-_AE0KjpfiVcm4Xm_HJwCJKUz9QdzYyyaZTpLtJdRfQe306wU9xLcvHzNSaU0hFREPFWXesIGQ1Ptzub3KojBweFJaYaa_qqDhVnALLvJQvyFwkd0pX6uUo7a4lBCsFBGJqRw-ut5fy_dvtwWly91lzk0nLLcPBYDjBfSv9z0g1tnOVXhaKLxS27JQGfRBKVW1hMLupOJjKkeC4IMGDJ2ynR8wI-2iq8ZhT9An_rEU7gRiHR-OfIxXeDCBM8SSAIFaeLa9zAMA7bBFF55mL7Cnbb17q4fkWMvDWAiiucDBpqPKsNU7cJxyXiDWDGOQQdsMqQZaFyM95UtVpMKaE3hT7OMcL7GNXhBOCqB7i5v2ruHRR5yVv4QPdUt2H2-9wRvzGYpB1TRzGXTmeO4e7CmYqEO0ZDipmTaVzKA2uxWbXCd7JjjH5D5WOkrM4hD43R79rmEjgD2DKgg5GsntpXzbEdwMNUbe8W1YiGty1lIUGnF4zNUmfl8KiouOqJYXC0DbI-1LR3iWpeWe-OAl5_jmuGiYtWT5K2x0sZSAc7JG2tXJ-02srptUXvX7YCRk22b7ce2E2HGtTE8bHneOGCbATCNc0Ji0C2Tarc1NTdGfWcX5COn3iWmTnldlpFHdbD8YHt-IkpW7aIaoi2FbikkosKTinLFdF9yyicj9FP3iglArbsqPi9yfF5pHYEXDAqPpRFZIvzRD2PNFueFZlV_V4F6ErkBI4Fz-Md_LjFiSQf_wICvCEY)**
+
+> Click the link above to view the full interactive ER diagram with all entities, attributes, PKs, FKs, and relationships rendered professionally.
+
+**Download rendered images:**
+- [SVG (vector, scalable)](https://diagrams-mcp-production.up.railway.app/images/tH5Vr-07QFBPaoYy751-81MxyPMDxMn8FeQRN7KkN7w)
+- [PNG (raster)](https://diagrams-mcp-production.up.railway.app/images/-aWodr9mW05CDCvj08ZazX_fq7d_Ey0gfc5pGQ_EGkE)
+
+#### Relationship Notation
+
+| Symbol | Meaning | Example |
+|--------|---------|---------|
+| `||--||` | Exactly one-to-one | DIM_DEALER has exactly one DIM_PROGRAM |
+| `||--o{` | One-to-many | DIM_DEALER has many DIM_CONTACTs |
+| `}o--||` | Many-to-one (reverse) | BRIDGE resolves many contacts to one dealer |
+| PK | Primary Key | Uniquely identifies the row |
+| FK | Foreign Key | References parent dimension |
+
+#### Layer Legend
+
+| Layer | Purpose | Grain |
+|-------|---------|-------|
+| **DIM_*** | Conformed dimensions | Current state (latest per entity) |
+| **BRIDGE_*** | Resolves broken/implicit FK relationships | One row per link |
+| **FCT_*** | Fact tables | One row per event occurrence |
+| **METRIC_*** | Pre-aggregated KPI views | Consumed by dashboards/BI tools |
+
+#### Key Design Decisions
+
+1. **Star Schema with Bridge** — DIM_DEALER is the central hub. All other dims connect via `pro_business_id`.
+2. **Bridge Pattern** — BRIDGE_CONTACT_DEALER resolves the NULL `proBusinessId` on contact-created events by extracting the relationship from business-master events.
+3. **Degenerate Dimensions** — UTM fields live directly on FCT_DEALER_EVENTS (no separate UTM dimension needed at this volume).
+4. **Conformed Dimensions** — DIM_DATE is role-playing across all fact tables (event_date FK).
+5. **Semi-Additive Facts** — `distributor_count` and `program_opt_in_count` are snapshot measures (latest state), not additive across time.
 
 ```
 1. ANALYTICS_DB.STAGING.STG_EVENTS_PARSED          (base layer — deduped, typed)
