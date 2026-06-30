@@ -17,11 +17,8 @@ title FCT_DEALER_EVENTS — Dealer Lifecycle Star Schema\nGrain: One row per bus
 skinparam linetype ortho
 skinparam classAttributeIconSize 0
 skinparam classFontSize 10
-skinparam classHeaderBackgroundColor<<fact>> #FF6B6B
-skinparam classHeaderBackgroundColor<<dim>> #4ECDC4
-skinparam classHeaderBackgroundColor<<bridge>> #FFE66D
 
-class FCT_DEALER_EVENTS <<fact>> {
+class FCT_DEALER_EVENTS <<(F,#FF6B6B) fact>> {
     + event_id : STRING <<PK>>
     --
     # pro_business_id → DIM_DEALER
@@ -56,7 +53,7 @@ class FCT_DEALER_EVENTS <<fact>> {
     utm_term : STRING
 }
 
-class DIM_DEALER <<dim>> {
+class DIM_DEALER <<(D,#4ECDC4) dim>> {
     + pro_business_id : STRING <<PK>>
     --
     business_name : STRING
@@ -73,7 +70,7 @@ class DIM_DEALER <<dim>> {
     registration_source : STRING
 }
 
-class DIM_DATE <<dim>> {
+class DIM_DATE <<(D,#4ECDC4) dim>> {
     + date_key : DATE <<PK>>
     --
     day_of_week : INT
@@ -86,7 +83,7 @@ class DIM_DATE <<dim>> {
     is_weekend : BOOLEAN
 }
 
-class DIM_LOCATION <<dim>> {
+class DIM_LOCATION <<(D,#4ECDC4) dim>> {
     + pro_location_id : STRING <<PK>>
     --
     # pro_business_id : STRING <<FK>>
@@ -137,11 +134,8 @@ title FCT_CONTACT_EVENTS — User Onboarding Star Schema\nGrain: One row per con
 skinparam linetype ortho
 skinparam classAttributeIconSize 0
 skinparam classFontSize 10
-skinparam classHeaderBackgroundColor<<fact>> #FF6B6B
-skinparam classHeaderBackgroundColor<<dim>> #4ECDC4
-skinparam classHeaderBackgroundColor<<bridge>> #FFE66D
 
-class FCT_CONTACT_EVENTS <<fact>> {
+class FCT_CONTACT_EVENTS <<(F,#FF6B6B) fact>> {
     + event_id : STRING <<PK>>
     --
     # pro_contact_id → DIM_CONTACT
@@ -163,7 +157,7 @@ class FCT_CONTACT_EVENTS <<fact>> {
     is_login_created_event : INT {0|1}
 }
 
-class DIM_CONTACT <<dim>> {
+class DIM_CONTACT <<(D,#4ECDC4) dim>> {
     + pro_contact_id : STRING <<PK>>
     --
     # pro_business_id : STRING <<FK via BRIDGE>>
@@ -177,7 +171,7 @@ class DIM_CONTACT <<dim>> {
     last_login_date : TIMESTAMP
 }
 
-class DIM_DEALER <<dim>> {
+class DIM_DEALER <<(D,#4ECDC4) dim>> {
     + pro_business_id : STRING <<PK>>
     --
     business_name : STRING
@@ -186,7 +180,7 @@ class DIM_DEALER <<dim>> {
     business_segment : STRING
 }
 
-class DIM_DATE <<dim>> {
+class DIM_DATE <<(D,#4ECDC4) dim>> {
     + date_key : DATE <<PK>>
     --
     day_of_week : INT
@@ -196,7 +190,7 @@ class DIM_DATE <<dim>> {
     year : INT
 }
 
-class BRIDGE_CONTACT_DEALER <<bridge>> {
+class BRIDGE_CONTACT_DEALER <<(B,#FFE66D) bridge>> {
     # pro_business_id : STRING <<FK>>
     # pro_contact_id : STRING <<FK>>
     --
@@ -249,10 +243,8 @@ title FCT_LEAD_FUNNEL — Dealer Conversion Pipeline Star Schema\nGrain: One row
 skinparam linetype ortho
 skinparam classAttributeIconSize 0
 skinparam classFontSize 10
-skinparam classHeaderBackgroundColor<<fact>> #FF6B6B
-skinparam classHeaderBackgroundColor<<dim>> #4ECDC4
 
-class FCT_LEAD_FUNNEL <<fact>> {
+class FCT_LEAD_FUNNEL <<(F,#FF6B6B) fact>> {
     + event_id : STRING <<PK>>
     --
     # pro_business_id → DIM_DEALER
@@ -277,7 +269,7 @@ class FCT_LEAD_FUNNEL <<fact>> {
     business_status : STRING
 }
 
-class DIM_DEALER <<dim>> {
+class DIM_DEALER <<(D,#4ECDC4) dim>> {
     + pro_business_id : STRING <<PK>>
     --
     business_name : STRING
@@ -289,7 +281,7 @@ class DIM_DEALER <<dim>> {
     crm_lead_id : STRING
 }
 
-class DIM_DATE <<dim>> {
+class DIM_DATE <<(D,#4ECDC4) dim>> {
     + date_key : DATE <<PK>>
     --
     day_of_week : INT
@@ -299,7 +291,7 @@ class DIM_DATE <<dim>> {
     year : INT
 }
 
-class DIM_SALES_REP <<dim>> {
+class DIM_SALES_REP <<(D,#4ECDC4) dim>> {
     + sales_rep_email : STRING <<PK>>
     --
     sales_rep_name : STRING
@@ -350,10 +342,8 @@ title FCT_RECONCILIATION — Data Mastering Operations Star Schema\nGrain: One r
 skinparam linetype ortho
 skinparam classAttributeIconSize 0
 skinparam classFontSize 10
-skinparam classHeaderBackgroundColor<<fact>> #FF6B6B
-skinparam classHeaderBackgroundColor<<dim>> #4ECDC4
 
-class FCT_RECONCILIATION <<fact>> {
+class FCT_RECONCILIATION <<(F,#FF6B6B) fact>> {
     + event_id : STRING <<PK>>
     --
     # event_date → DIM_DATE
@@ -373,7 +363,7 @@ class FCT_RECONCILIATION <<fact>> {
     identity_linkage_prefix : STRING <<S3 path>>
 }
 
-class DIM_DATE <<dim>> {
+class DIM_DATE <<(D,#4ECDC4) dim>> {
     + date_key : DATE <<PK>>
     --
     day_of_week : INT
@@ -416,16 +406,12 @@ title Fluidra Pro Analytics — Constellation Schema (All Facts)\nSource: EVENTS
 skinparam linetype ortho
 skinparam classAttributeIconSize 0
 skinparam classFontSize 9
-skinparam classHeaderBackgroundColor<<fact>> #FF6B6B
-skinparam classHeaderBackgroundColor<<dim>> #4ECDC4
-skinparam classHeaderBackgroundColor<<bridge>> #FFE66D
-skinparam classHeaderBackgroundColor<<metric>> #81C784
 
 ' ============================================================
 ' CONFORMED DIMENSIONS (shared across facts)
 ' ============================================================
 
-class DIM_DEALER <<dim>> {
+class DIM_DEALER <<(D,#4ECDC4) dim>> {
     + pro_business_id : STRING <<PK>>
     --
     business_name : STRING
@@ -443,7 +429,7 @@ class DIM_DEALER <<dim>> {
     created_at : TIMESTAMP
 }
 
-class DIM_CONTACT <<dim>> {
+class DIM_CONTACT <<(D,#4ECDC4) dim>> {
     + pro_contact_id : STRING <<PK>>
     # pro_business_id : STRING <<FK>>
     --
@@ -456,7 +442,7 @@ class DIM_CONTACT <<dim>> {
     last_login_date : TIMESTAMP
 }
 
-class DIM_LOCATION <<dim>> {
+class DIM_LOCATION <<(D,#4ECDC4) dim>> {
     + pro_location_id : STRING <<PK>>
     # pro_business_id : STRING <<FK>>
     --
@@ -467,7 +453,7 @@ class DIM_LOCATION <<dim>> {
     country : STRING
 }
 
-class DIM_PROGRAM <<dim>> {
+class DIM_PROGRAM <<(D,#4ECDC4) dim>> {
     + pro_business_id : STRING <<PK, 1:1>>
     --
     program_level : STRING
@@ -477,7 +463,7 @@ class DIM_PROGRAM <<dim>> {
     program_signup_date : TIMESTAMP
 }
 
-class DIM_DISTRIBUTOR <<dim>> {
+class DIM_DISTRIBUTOR <<(D,#4ECDC4) dim>> {
     # pro_business_id : STRING <<FK>>
     distributor_name : STRING
     distributor_account_number : STRING
@@ -487,7 +473,7 @@ class DIM_DISTRIBUTOR <<dim>> {
     active_date : TIMESTAMP
 }
 
-class DIM_PROGRAM_OPT_IN <<dim>> {
+class DIM_PROGRAM_OPT_IN <<(D,#4ECDC4) dim>> {
     # pro_business_id : STRING <<FK>>
     program_name : STRING
     --
@@ -495,7 +481,7 @@ class DIM_PROGRAM_OPT_IN <<dim>> {
     program_opt_in_date : TIMESTAMP
 }
 
-class DIM_SUBSCRIPTION <<dim>> {
+class DIM_SUBSCRIPTION <<(D,#4ECDC4) dim>> {
     + subscription_id : STRING <<PK>>
     # pro_business_id : STRING <<FK>>
     --
@@ -503,13 +489,13 @@ class DIM_SUBSCRIPTION <<dim>> {
     subscription_status : STRING
 }
 
-class DIM_SALES_REP <<dim>> {
+class DIM_SALES_REP <<(D,#4ECDC4) dim>> {
     + sales_rep_email : STRING <<PK>>
     --
     sales_rep_name : STRING
 }
 
-class DIM_DATE <<dim>> {
+class DIM_DATE <<(D,#4ECDC4) dim>> {
     + date_key : DATE <<PK>>
     --
     day_of_week : INT
@@ -520,7 +506,7 @@ class DIM_DATE <<dim>> {
     is_weekend : BOOLEAN
 }
 
-class BRIDGE_CONTACT_DEALER <<bridge>> {
+class BRIDGE_CONTACT_DEALER <<(B,#FFE66D) bridge>> {
     # pro_business_id : STRING <<FK>>
     # pro_contact_id : STRING <<FK>>
     --
@@ -531,7 +517,7 @@ class BRIDGE_CONTACT_DEALER <<bridge>> {
 ' FACT TABLES
 ' ============================================================
 
-class FCT_DEALER_EVENTS <<fact>> {
+class FCT_DEALER_EVENTS <<(F,#FF6B6B) fact>> {
     + event_id : STRING <<PK>>
     # pro_business_id <<FK>>
     # event_date <<FK>>
@@ -544,7 +530,7 @@ class FCT_DEALER_EVENTS <<fact>> {
     utm_source / campaign : STRING
 }
 
-class FCT_CONTACT_EVENTS <<fact>> {
+class FCT_CONTACT_EVENTS <<(F,#FF6B6B) fact>> {
     + event_id : STRING <<PK>>
     # pro_contact_id <<FK>>
     # pro_business_id <<FK>>
@@ -556,7 +542,7 @@ class FCT_CONTACT_EVENTS <<fact>> {
     is_login_created_event : INT
 }
 
-class FCT_LEAD_FUNNEL <<fact>> {
+class FCT_LEAD_FUNNEL <<(F,#FF6B6B) fact>> {
     + event_id : STRING <<PK>>
     # pro_business_id <<FK>>
     # event_date <<FK>>
@@ -569,7 +555,7 @@ class FCT_LEAD_FUNNEL <<fact>> {
     failure_reason : STRING
 }
 
-class FCT_RECONCILIATION <<fact>> {
+class FCT_RECONCILIATION <<(F,#FF6B6B) fact>> {
     + event_id : STRING <<PK>>
     # event_date <<FK>>
     --
@@ -582,52 +568,52 @@ class FCT_RECONCILIATION <<fact>> {
 ' METRIC VIEWS
 ' ============================================================
 
-class METRIC_DEALER_ADOPTION <<metric>> {
+class METRIC_DEALER_ADOPTION <<(M,#81C784) metric>> {
     KPI 1.1-1.5
     active | enrolled | not_setup
     inactive | new_dealers
 }
 
-class METRIC_DEALER_CONVERSION <<metric>> {
+class METRIC_DEALER_CONVERSION <<(M,#81C784) metric>> {
     KPI 2.1-2.4
     guest_to_lead | rejection_rate
     approve_time | activation_time
 }
 
-class METRIC_USER_ADOPTION <<metric>> {
+class METRIC_USER_ADOPTION <<(M,#81C784) metric>> {
     KPI 3.1-3.7
     active_users | technicians
     never_setup | login_rate
     users_per_dealer
 }
 
-class METRIC_DEALER_HEALTH <<metric>> {
+class METRIC_DEALER_HEALTH <<(M,#81C784) metric>> {
     Per-dealer scorecard
     health_status
     days_since_login
 }
 
-class METRIC_FUNNEL_DAILY <<metric>> {
+class METRIC_FUNNEL_DAILY <<(M,#81C784) metric>> {
     Daily volumes & rates
     approval_rate_pct
 }
 
-class METRIC_PROGRAM_ENROLLMENT <<metric>> {
+class METRIC_PROGRAM_ENROLLMENT <<(M,#81C784) metric>> {
     By program
     activation_rate_pct
 }
 
-class METRIC_DISTRIBUTOR_COVERAGE <<metric>> {
+class METRIC_DISTRIBUTOR_COVERAGE <<(M,#81C784) metric>> {
     By distributor
     active_rate_pct
 }
 
-class METRIC_CONTACT_ONBOARDING <<metric>> {
+class METRIC_CONTACT_ONBOARDING <<(M,#81C784) metric>> {
     By contact_type
     first_login_rate_pct
 }
 
-class METRIC_REGISTRATION_TRENDS <<metric>> {
+class METRIC_REGISTRATION_TRENDS <<(M,#81C784) metric>> {
     Weekly new dealers
     failure_rate_pct
 }
