@@ -1,0 +1,503 @@
+# Pure Kimball Dimensional Model — Thin Dims + Proper Facts
+
+## Design Principle
+
+- **Dimensions** = descriptive attributes ONLY (text, categories, flags, dates). No counts, no aggregates.
+- **Facts** = numeric measures + FK references to dimensions. One row per event OR per snapshot period.
+- **OBT** = denormalized wide table for BI tools. Joins dim + fact for convenience.
+
+---
+
+## 1. Mermaid ER Diagram — Pure Kimball
+
+```mermaid
+erDiagram
+    %% ===== DIMENSIONS (Thin - Attributes Only) =====
+    DIM_DEALER ||--o{ FCT_DEALER_EVENTS : "pro_business_id"
+    DIM_DEALER ||--o{ FCT_LEAD_FUNNEL : "pro_business_id"
+    DIM_DEALER ||--o{ FCT_DEALER_SNAPSHOT : "pro_business_id"
+    DIM_CONTACT ||--o{ FCT_CONTACT_EVENTS : "pro_contact_id"
+    DIM_DATE ||--o{ FCT_DEALER_EVENTS : "event_date"
+    DIM_DATE ||--o{ FCT_CONTACT_EVENTS : "event_date"
+    DIM_DATE ||--o{ FCT_LEAD_FUNNEL : "event_date"
+    DIM_DATE ||--o{ FCT_DEALER_SNAPSHOT : "snapshot_date"
+    DIM_SALES_REP ||--o{ FCT_LEAD_FUNNEL : "sales_rep_email"
+    DIM_DEALER ||--o{ DIM_CONTACT : "pro_business_id"
+    DIM_DEALER ||--o{ DIM_DISTRIBUTOR : "pro_business_id"
+    DIM_DEALER ||--o{ DIM_PROGRAM_OPT_IN : "pro_business_id"
+    DIM_DEALER ||--o{ DIM_SUBSCRIPTION : "pro_business_id"
+    DIM_DEALER ||--o{ DIM_LOCATION : "pro_business_id"
+    BRIDGE_CONTACT_DEALER }o--|| DIM_DEALER : "pro_business_id"
+    BRIDGE_CONTACT_DEALER }o--|| DIM_CONTACT : "pro_contact_id"
+
+    DIM_DEALER {
+        string pro_business_id PK
+        string business_name
+        string doing_business_as
+        string business_status "ACTIVE|LEAD|GUEST|REJECTED"
+        string login_status "ACTIVE|PENDING"
+        string customer_type
+        string primary_business_type "BUILDER|SERVICE|RETAILER"
+        string business_segment "BUILD|SERVICE|RETAIL"
+        string channel "NEW CONSTRUCTION|AFTERMARKET"
+        string customer_class
+        string sales_channel
+        string registration_source "PROWEB|SALESFORCE"
+        string fluidra_account_number "Join key to revenue"
+        string crm_lead_id "Salesforce link"
+        string key_account_type_name
+        string key_account_type_role
+        string rewards_program_level "PROEDGE|SERVICEPRO|RETAIL SELECT"
+        string rewards_achiever_level "PARTNER|ELITE|MEMBER"
+        string rewards_program_status "ACTIVE|PENDING"
+        string rewards_rebate_pay_type "AP Voucher|Debit VISA"
+        string billing_city
+        string billing_state
+        string billing_zip
+        string billing_country
+        timestamp rewards_signup_date
+        timestamp created_at
+    }
+
+    DIM_CONTACT {
+        string pro_contact_id PK
+        string pro_business_id FK "via BRIDGE"
+        string contact_type "OWNER|TECHNICIAN|OFFICE ADMIN|CO-OWNER|CSC"
+        string first_name
+        string last_name
+        string email
+        string login_status "ACTIVE|PENDING|NOLOGIN|DISABLE_PENDING"
+        string username
+        string cognito_sub_id "Join key to Cognito"
+        string contact_status
+        timestamp created_at
+    }
+
+    DIM_DISTRIBUTOR {
+        string pro_business_id FK
+        string distributor_name PK
+        string distributor_account_number PK
+        string distributor_account_status "ACTIVE|PENDING ACTIVE|INACTIVE"
+        string source "MANUAL|PROWEB"
+        timestamp active_date
+    }
+
+    DIM_PROGRAM_OPT_IN {
+        string pro_business_id FK
+        string program_name PK "PROEDGE|SERVICEPRO|FLATRATE|RETAIL SELECT"
+        string program_status "ACTIVE|PENDING|DECLINED|INACTIVE"
+        timestamp program_opt_in_date
+        string source
+    }
+
+    DIM_SUBSCRIPTION {
+        string pro_business_id FK
+        string subscription_id PK
+        string subscription_name "ION POOL CARE"
+        string subscription_status "ACTIVE"
+        timestamp program_start_date
+    }
+
+    DIM_LOCATION {
+        string pro_location_id PK
+        string pro_business_id FK
+        string location_type "PRIMARY_BILL_TO|PRIMARY_SHIP_TO|STORE"
+        string location_name
+        string location_status
+        string city
+        string state
+        string zip
+        string country
+    }
+
+    DIM_SALES_REP {
+        string sales_rep_email PK
+        string sales_rep_name
+    }
+
+    DIM_DATE {
+        date date_key PK
+        int day_of_week
+        int week_of_year
+        int month_number
+        int quarter
+        int year
+        boolean is_weekend
+    }
+
+    DIM_KEY_ACCOUNT_TYPE {
+        string key_account_type_id PK
+        string key_account_type_name
+        string key_account_type_role
+        string customer_class
+        string sales_channel
+    }
+
+    BRIDGE_CONTACT_DEALER {
+        string pro_business_id FK
+        string pro_contact_id FK
+        string relationship_type "PRIMARY_CONTACT"
+    }
+
+    %% ===== FACTS (Measures Only) =====
+    FCT_DEALER_EVENTS {
+        string event_id PK
+        string pro_business_id FK
+        date event_date FK
+        timestamp event_time
+        string event_detail_type
+        string metadata_event_type
+        int distributor_count "measure"
+        int program_opt_in_count "measure"
+        int subscription_count "measure"
+        int is_created_event "flag 0|1"
+        int is_approved_event "flag 0|1"
+        int is_rejected_event "flag 0|1"
+        int is_creation_failed "flag 0|1"
+        string failure_reason "degenerate dim"
+    }
+
+    FCT_CONTACT_EVENTS {
+        string event_id PK
+        string pro_contact_id FK
+        string pro_business_id FK
+        date event_date FK
+        timestamp event_time
+        string contact_type "degenerate dim"
+        int is_created_event "flag 0|1"
+        int is_login_created_event "flag 0|1"
+        int is_deleted_event "flag 0|1"
+    }
+
+    FCT_LEAD_FUNNEL {
+        string event_id PK
+        string pro_business_id FK
+        date event_date FK
+        string sales_rep_email FK
+        timestamp event_time
+        string funnel_stage "GUEST|LEAD|APPROVED|REJECTED|FAILED"
+        string crm_lead_id "degenerate dim"
+        int seconds_in_stage "measure"
+        string failure_reason "degenerate dim"
+    }
+
+    FCT_DEALER_SNAPSHOT {
+        string pro_business_id FK
+        date snapshot_date FK
+        int total_distributor_count "measure"
+        int active_distributor_count "measure"
+        int total_program_count "measure"
+        int active_program_count "measure"
+        int total_subscription_count "measure"
+        int active_subscription_count "measure"
+        int days_since_last_login "measure"
+        int total_contacts "measure"
+        int active_contacts "measure"
+        string health_status "derived category"
+    }
+```
+
+---
+
+## 2. What Changed from Current Model
+
+| Object | Before (Current) | After (Pure Kimball) |
+|--------|-----------------|---------------------|
+| `DIM_PRO_BUSINESS_MASTER` | Has 11 count/aggregate columns | → Renamed `OBT_DEALER_PROFILE` (BI layer) |
+| `DIM_DEALER` (new) | Didn't exist as thin dim | → Pure attributes only, no counts |
+| `FCT_DEALER_SNAPSHOT` (new) | Didn't exist | → Periodic snapshot with all numeric measures |
+| `DIM_CONTACT` | Has `days_since_last_login` | → Remove calculated numeric, keep only attributes |
+| `DIM_DISTRIBUTOR` | ✅ Already correct | No change needed |
+| `DIM_PROGRAM_OPT_IN` | ✅ Already correct | No change needed |
+| `DIM_SUBSCRIPTION` | ✅ Already correct | No change needed |
+| `DIM_LOCATION` | ✅ Already correct | No change needed |
+| `DIM_KEY_ACCOUNT_TYPE` | ✅ Already correct | No change needed |
+| `BRIDGE_CONTACT_DEALER` | ✅ Already correct | No change needed |
+
+---
+
+## 3. SQL — Only Changed/New Objects
+
+### DIM_DEALER (NEW — thin, attributes only)
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_DEALER AS
+SELECT
+    pro_business_id,
+    business_name,
+    doing_business_as,
+    business_status,
+    login_status,
+    registration_source,
+    customer_type,
+    primary_business_type,
+    business_segment,
+    channel,
+    customer_class,
+    sales_channel,
+    primary_business_email,
+    primary_business_phone,
+    website,
+    is_primary_key_account,
+    key_account_type_name,
+    key_account_type_role,
+    fluidra_account_number,
+    crm_lead_id,
+    web_account_id,
+    is_pro_login_allowed,
+    terms_accepted,
+    e_statement_enabled,
+    is_marcom_consent,
+    tse_violator,
+    -- Rewards attributes (descriptors, not measures)
+    rewards_program_level,
+    rewards_achiever_level,
+    rewards_program_status,
+    rewards_rebate_pay_type,
+    rewards_region,
+    rewards_auto_zodiac,
+    rewards_signup_date,
+    -- Primary contact attributes (embedded 1:1)
+    primary_contact_id,
+    primary_contact_type,
+    primary_contact_first_name,
+    primary_contact_last_name,
+    primary_contact_login_status,
+    primary_contact_cognito_sub_id,
+    -- Location attributes
+    billing_location_id,
+    billing_city,
+    billing_state,
+    billing_zip,
+    billing_country,
+    shipping_location_id,
+    shipping_city,
+    shipping_state,
+    -- Sales rep attributes
+    sales_rep_name,
+    sales_rep_email,
+    -- UTM (descriptors)
+    utm_source,
+    utm_medium,
+    utm_campaign,
+    -- Audit
+    created_at,
+    created_by,
+    updated_at,
+    event_time AS last_event_time
+FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESSES;
+```
+
+### DIM_CONTACT (UPDATED — remove calculated measure)
+
+```sql
+-- Change from current: REMOVED days_since_last_login (measure)
+-- Kept last_login_date as a timestamp attribute (it's a descriptor of "when did they last login")
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_CONTACT AS
+WITH contact_standalone AS (SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_CONTACTS),
+bridge AS (
+    SELECT DISTINCT
+        PARSE_JSON(C2):detail.data.proBusinessId::STRING AS pro_business_id,
+        PARSE_JSON(C2):detail.data.primaryContact.proContactId::STRING AS pro_contact_id
+    FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
+    WHERE C1 != 'RECORD_METADATA'
+      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
+      AND PARSE_JSON(C2):detail.data.primaryContact.proContactId IS NOT NULL
+      AND PARSE_JSON(C2):detail.data.proBusinessId IS NOT NULL
+)
+SELECT
+    c.pro_contact_id,
+    COALESCE(c.pro_business_id, b.pro_business_id) AS pro_business_id,
+    c.contact_type,
+    c.first_name,
+    c.last_name,
+    c.email,
+    c.phone_number,
+    c.login_status,
+    c.username,
+    c.cognito_sub_id,
+    c.web_user_id,
+    c.last_login_date,          -- timestamp attribute (NOT a measure)
+    c.contact_status,
+    c.is_deleted_event,
+    c.created_at,
+    c.updated_at,
+    c.event_time AS last_event_time
+FROM contact_standalone c
+LEFT JOIN bridge b ON c.pro_contact_id = b.pro_contact_id;
+```
+
+### FCT_DEALER_SNAPSHOT (NEW — periodic snapshot fact)
+
+```sql
+-- This captures the dealer's numeric profile at current point in time.
+-- In production, this would be materialized as a TABLE with daily inserts (append-only).
+-- For POC, it's a view showing current state.
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT AS
+WITH dealer AS (
+    SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESSES
+),
+dist_counts AS (
+    SELECT pro_business_id,
+        COUNT(*) AS total_distributor_count,
+        COUNT(CASE WHEN distributor_account_status = 'ACTIVE' THEN 1 END) AS active_distributor_count,
+        COUNT(CASE WHEN distributor_account_status = 'PENDING ACTIVE' THEN 1 END) AS pending_distributor_count,
+        COUNT(CASE WHEN distributor_account_status IN ('INACTIVE','PENDING INACTIVE') THEN 1 END) AS inactive_distributor_count
+    FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESS_DISTRIBUTORS
+    GROUP BY pro_business_id
+),
+prog_counts AS (
+    SELECT pro_business_id,
+        COUNT(*) AS total_program_count,
+        COUNT(CASE WHEN program_status = 'ACTIVE' THEN 1 END) AS active_program_count,
+        COUNT(CASE WHEN program_status = 'PENDING' THEN 1 END) AS pending_program_count,
+        COUNT(CASE WHEN program_status = 'DECLINED' THEN 1 END) AS declined_program_count
+    FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESS_PROGRAM_OPTINS
+    GROUP BY pro_business_id
+),
+sub_counts AS (
+    SELECT pro_business_id,
+        COUNT(*) AS total_subscription_count,
+        COUNT(CASE WHEN subscription_status = 'ACTIVE' THEN 1 END) AS active_subscription_count
+    FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESS_SUBSCRIPTIONS
+    GROUP BY pro_business_id
+),
+contact_counts AS (
+    SELECT b.pro_business_id,
+        COUNT(*) AS total_contacts,
+        COUNT(CASE WHEN c.login_status = 'ACTIVE' THEN 1 END) AS active_contacts
+    FROM ANALYTICS_DB_DEV.DIMENSIONS.BRIDGE_CONTACT_DEALER b
+    JOIN ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_CONTACTS c ON b.pro_contact_id = c.pro_contact_id
+    GROUP BY b.pro_business_id
+)
+SELECT
+    d.pro_business_id,
+    CURRENT_DATE AS snapshot_date,
+    -- Distributor measures
+    COALESCE(dc.total_distributor_count, 0) AS total_distributor_count,
+    COALESCE(dc.active_distributor_count, 0) AS active_distributor_count,
+    COALESCE(dc.pending_distributor_count, 0) AS pending_distributor_count,
+    COALESCE(dc.inactive_distributor_count, 0) AS inactive_distributor_count,
+    -- Program measures
+    COALESCE(pc.total_program_count, 0) AS total_program_count,
+    COALESCE(pc.active_program_count, 0) AS active_program_count,
+    COALESCE(pc.pending_program_count, 0) AS pending_program_count,
+    COALESCE(pc.declined_program_count, 0) AS declined_program_count,
+    -- Subscription measures
+    COALESCE(sc.total_subscription_count, 0) AS total_subscription_count,
+    COALESCE(sc.active_subscription_count, 0) AS active_subscription_count,
+    -- Contact measures
+    COALESCE(cc.total_contacts, 0) AS total_contacts,
+    COALESCE(cc.active_contacts, 0) AS active_contacts,
+    -- Login measure
+    DATEDIFF('day', d.primary_contact_last_login, CURRENT_TIMESTAMP()) AS days_since_last_login,
+    -- Derived health (this is a derived CATEGORY placed on the fact for convenience)
+    CASE
+        WHEN d.login_status = 'ACTIVE' AND d.primary_contact_last_login >= DATEADD('day', -30, CURRENT_TIMESTAMP()) THEN 'HEALTHY'
+        WHEN d.login_status = 'ACTIVE' AND (d.primary_contact_last_login < DATEADD('day', -30, CURRENT_TIMESTAMP()) OR d.primary_contact_last_login IS NULL) THEN 'AT_RISK'
+        WHEN d.login_status = 'PENDING' THEN 'NOT_ONBOARDED'
+        WHEN d.business_status = 'GUEST' THEN 'GUEST'
+        WHEN d.business_status = 'REJECTED' THEN 'REJECTED'
+        ELSE 'UNKNOWN'
+    END AS health_status
+FROM dealer d
+LEFT JOIN dist_counts dc ON d.pro_business_id = dc.pro_business_id
+LEFT JOIN prog_counts pc ON d.pro_business_id = pc.pro_business_id
+LEFT JOIN sub_counts sc ON d.pro_business_id = sc.pro_business_id
+LEFT JOIN contact_counts cc ON d.pro_business_id = cc.pro_business_id;
+```
+
+### OBT_DEALER_PROFILE (RENAMED — BI consumption layer)
+
+```sql
+-- This is the EXISTING DIM_PRO_BUSINESS_MASTER, just renamed.
+-- It's NOT a dimension. It's a One Big Table for BI tools.
+-- Joins DIM_DEALER attributes + FCT_DEALER_SNAPSHOT measures in one wide row.
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.MARTS.OBT_DEALER_PROFILE AS
+SELECT
+    d.*,
+    f.total_distributor_count,
+    f.active_distributor_count,
+    f.pending_distributor_count,
+    f.inactive_distributor_count,
+    f.total_program_count,
+    f.active_program_count,
+    f.pending_program_count,
+    f.declined_program_count,
+    f.total_subscription_count,
+    f.active_subscription_count,
+    f.total_contacts,
+    f.active_contacts,
+    f.days_since_last_login,
+    f.health_status
+FROM ANALYTICS_DB_DEV.DIMENSIONS.DIM_DEALER d
+LEFT JOIN ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT f
+    ON d.pro_business_id = f.pro_business_id;
+```
+
+---
+
+## 4. Dims That Need NO Change
+
+These are already pure — attributes only, no measures:
+
+| Dimension | Status | Reason |
+|-----------|:------:|--------|
+| `DIM_DISTRIBUTOR` | ✅ Correct | Only has name, number, status, source, date |
+| `DIM_PROGRAM_OPT_IN` | ✅ Correct | Only has name, status, date, source |
+| `DIM_SUBSCRIPTION` | ✅ Correct | Only has id, name, status, date |
+| `DIM_LOCATION` | ✅ Correct | Only has id, type, name, city/state/zip |
+| `DIM_KEY_ACCOUNT_TYPE` | ✅ Correct | Only has id, name, role, class |
+| `DIM_SALES_REP` | ✅ Correct | Only has email, name |
+| `DIM_DATE` | ✅ Correct | Standard date dimension |
+| `BRIDGE_CONTACT_DEALER` | ✅ Correct | Only FKs + relationship_type |
+
+---
+
+## 5. Final Architecture Summary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  DIMENSIONS (Thin — Attributes Only)                         │
+├─────────────────────────────────────────────────────────────┤
+│  DIM_DEALER          │ WHO is the dealer (profile)           │
+│  DIM_CONTACT         │ WHO is the user (profile)             │
+│  DIM_DISTRIBUTOR     │ WHAT distributors are linked           │
+│  DIM_PROGRAM_OPT_IN  │ WHAT programs are enrolled            │
+│  DIM_SUBSCRIPTION    │ WHAT IoT subscriptions                │
+│  DIM_LOCATION        │ WHERE are they located                │
+│  DIM_KEY_ACCOUNT_TYPE│ WHAT type of key account              │
+│  DIM_SALES_REP       │ WHO manages the lead                  │
+│  DIM_DATE            │ WHEN did it happen                    │
+│  BRIDGE_CONTACT_DEALER│ Links contact ↔ dealer               │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  FACTS (Measures Only)                                       │
+├─────────────────────────────────────────────────────────────┤
+│  FCT_DEALER_EVENTS   │ Event grain: what happened to dealer  │
+│  FCT_CONTACT_EVENTS  │ Event grain: what happened to contact │
+│  FCT_LEAD_FUNNEL     │ Event grain: funnel transitions       │
+│  FCT_DEALER_SNAPSHOT │ Periodic: dealer profile metrics NOW  │
+│  FCT_RECONCILIATION  │ Event grain: data ops runs            │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│  CONSUMPTION (BI Layer)                                      │
+├─────────────────────────────────────────────────────────────┤
+│  OBT_DEALER_PROFILE  │ Wide table = DIM + Snapshot joined    │
+│  METRIC_*            │ Pre-aggregated KPIs                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 6. Key Principles Applied
+
+| Principle | Implementation |
+|-----------|---------------|
+| Dims have NO measures | All counts moved to FCT_DEALER_SNAPSHOT |
+| Facts have FK + measures | Numeric fields only + degenerate dims |
+| Snapshot enables trends | Daily insert → "how did health change over time?" |
+| OBT is for BI, not modeling | Clearly labeled as consumption layer |
+| No double-counting | Measures live in ONE place (the fact), referenced by many |
