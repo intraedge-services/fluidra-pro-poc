@@ -241,3 +241,149 @@ ANALYTICS_DB_DEV.FACTS (to be built)
     ▼
 ANALYTICS_DB_DEV.MARTS (KPI metrics — to be built)
 ```
+
+---
+
+## Snowflake DDL — Dimension Views
+
+### DIM_PRO_BUSINESS_MASTER
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_BUSINESS_MASTER AS
+WITH base AS (SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESSES),
+distributor_agg AS (
+    SELECT pro_business_id,
+        COUNT(*) AS total_distributor_count,
+        COUNT(CASE WHEN distributor_account_status = 'ACTIVE' THEN 1 END) AS active_distributor_count,
+        COUNT(CASE WHEN distributor_account_status = 'PENDING ACTIVE' THEN 1 END) AS pending_distributor_count,
+        COUNT(CASE WHEN distributor_account_status IN ('INACTIVE','PENDING INACTIVE') THEN 1 END) AS inactive_distributor_count,
+        LISTAGG(DISTINCT distributor_name, ', ') WITHIN GROUP (ORDER BY distributor_name) AS distributor_names_list
+    FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESS_DISTRIBUTORS GROUP BY pro_business_id
+),
+program_agg AS (
+    SELECT pro_business_id,
+        COUNT(*) AS total_program_count,
+        COUNT(CASE WHEN program_status = 'ACTIVE' THEN 1 END) AS active_program_count,
+        LISTAGG(DISTINCT program_name, ', ') WITHIN GROUP (ORDER BY program_name) AS program_names_list,
+        MAX(CASE WHEN program_name = 'PROEDGE' AND program_status = 'ACTIVE' THEN TRUE ELSE FALSE END) AS has_active_proedge,
+        MAX(CASE WHEN program_name LIKE '%SERVICEPRO%' AND program_status = 'ACTIVE' THEN TRUE ELSE FALSE END) AS has_active_servicepro
+    FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESS_PROGRAM_OPTINS GROUP BY pro_business_id
+),
+subscription_agg AS (
+    SELECT pro_business_id,
+        COUNT(*) AS total_subscription_count,
+        COUNT(CASE WHEN subscription_status = 'ACTIVE' THEN 1 END) AS active_subscription_count,
+        MAX(CASE WHEN subscription_name = 'ION POOL CARE' AND subscription_status = 'ACTIVE' THEN TRUE ELSE FALSE END) AS has_active_ion_pool_care
+    FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESS_SUBSCRIPTIONS GROUP BY pro_business_id
+)
+SELECT b.*, 
+    COALESCE(d.total_distributor_count, 0) AS total_distributor_count,
+    COALESCE(d.active_distributor_count, 0) AS active_distributor_count,
+    d.distributor_names_list,
+    COALESCE(p.total_program_count, 0) AS total_program_count,
+    COALESCE(p.active_program_count, 0) AS active_program_count,
+    p.program_names_list,
+    COALESCE(p.has_active_proedge, FALSE) AS has_active_proedge,
+    COALESCE(p.has_active_servicepro, FALSE) AS has_active_servicepro,
+    COALESCE(s.total_subscription_count, 0) AS total_subscription_count,
+    COALESCE(s.has_active_ion_pool_care, FALSE) AS has_active_ion_pool_care,
+    CASE
+        WHEN b.login_status = 'ACTIVE' AND b.primary_contact_last_login >= DATEADD('day', -30, CURRENT_TIMESTAMP()) THEN 'HEALTHY'
+        WHEN b.login_status = 'ACTIVE' THEN 'AT_RISK'
+        WHEN b.login_status = 'PENDING' THEN 'NOT_ONBOARDED'
+        ELSE 'UNKNOWN'
+    END AS health_status
+FROM base b
+LEFT JOIN distributor_agg d ON b.pro_business_id = d.pro_business_id
+LEFT JOIN program_agg p ON b.pro_business_id = p.pro_business_id
+LEFT JOIN subscription_agg s ON b.pro_business_id = s.pro_business_id;
+```
+
+### DIM_CONTACT
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_CONTACT AS
+WITH contact_standalone AS (SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_CONTACTS),
+bridge AS (
+    SELECT DISTINCT
+        PARSE_JSON(C2):detail.data.proBusinessId::STRING AS pro_business_id,
+        PARSE_JSON(C2):detail.data.primaryContact.proContactId::STRING AS pro_contact_id
+    FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
+    WHERE C1 != 'RECORD_METADATA'
+      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
+      AND PARSE_JSON(C2):detail.data.primaryContact.proContactId IS NOT NULL
+      AND PARSE_JSON(C2):detail.data.proBusinessId IS NOT NULL
+)
+SELECT c.*,
+    COALESCE(c.pro_business_id, b.pro_business_id) AS resolved_pro_business_id,
+    CASE
+        WHEN c.is_deleted_event THEN 'DELETED'
+        WHEN c.login_status = 'ACTIVE' AND c.last_login_date >= DATEADD('day', -30, CURRENT_TIMESTAMP()) THEN 'ACTIVE'
+        WHEN c.login_status = 'ACTIVE' THEN 'INACTIVE'
+        WHEN c.login_status = 'PENDING' THEN 'PENDING_SETUP'
+        WHEN c.login_status = 'NOLOGIN' THEN 'NO_LOGIN_REQUIRED'
+        ELSE 'UNKNOWN'
+    END AS contact_health_status
+FROM contact_standalone c
+LEFT JOIN bridge b ON c.pro_contact_id = b.pro_contact_id;
+```
+
+### Other Dimensions (pass-through from staging)
+
+```sql
+-- DIM_DISTRIBUTOR
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_DISTRIBUTOR AS
+SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESS_DISTRIBUTORS;
+
+-- DIM_PROGRAM_OPT_IN
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_PROGRAM_OPT_IN AS
+SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESS_PROGRAM_OPTINS;
+
+-- DIM_SUBSCRIPTION
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_SUBSCRIPTION AS
+SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESS_SUBSCRIPTIONS;
+
+-- DIM_KEY_ACCOUNT_TYPE
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_KEY_ACCOUNT_TYPE AS
+SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_KEY_ACCOUNT_TYPES;
+
+-- DIM_LOCATION
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_LOCATION AS
+SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_LOCATIONS;
+
+-- BRIDGE_CONTACT_DEALER
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.BRIDGE_CONTACT_DEALER AS
+SELECT DISTINCT
+    PARSE_JSON(C2):detail.data.proBusinessId::STRING AS pro_business_id,
+    PARSE_JSON(C2):detail.data.primaryContact.proContactId::STRING AS pro_contact_id,
+    'PRIMARY_CONTACT' AS relationship_type
+FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
+WHERE C1 != 'RECORD_METADATA'
+  AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
+  AND PARSE_JSON(C2):detail.data.primaryContact.proContactId IS NOT NULL
+  AND PARSE_JSON(C2):detail.data.proBusinessId IS NOT NULL;
+```
+
+---
+
+## dbt Model Files
+
+All dbt models are in `dbt/models/`:
+
+| Path | Materialization |
+|------|:-:|
+| `staging/fluidrapro/stg_fpro_qa_businesses.sql` | view |
+| `staging/fluidrapro/stg_fpro_qa_business_distributors.sql` | view |
+| `staging/fluidrapro/stg_fpro_qa_business_program_optins.sql` | view |
+| `staging/fluidrapro/stg_fpro_qa_business_subscriptions.sql` | view |
+| `staging/fluidrapro/stg_fpro_qa_contacts.sql` | view |
+| `staging/fluidrapro/stg_fpro_qa_leads.sql` | view |
+| `staging/fluidrapro/stg_fpro_qa_key_account_types.sql` | view |
+| `staging/fluidrapro/stg_fpro_qa_locations.sql` | view |
+| `dimensions/dim_pro_business_master.sql` | **table** |
+| `dimensions/dim_contact.sql` | **table** |
+| `dimensions/dim_distributor.sql` | view |
+| `dimensions/dim_program_opt_in.sql` | view |
+| `dimensions/dim_subscription.sql` | view |
+| `dimensions/dim_location.sql` | view |
+| `dimensions/dim_key_account_type.sql` | view |
