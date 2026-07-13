@@ -47,7 +47,6 @@ package "DIMENSIONS" #E8F4FD {
     + key_account_type_id : STRING <<PK>>
   }
 
-  class DIM_SALES_REP <<(D,#4ECDC4)>> {
     + sales_rep_email : STRING <<PK>>
   }
 
@@ -80,7 +79,6 @@ package "FACTS" #FBE9E7 {
     + event_id : STRING <<PK>>
     # pro_business_id : STRING <<FK>>
     # event_date : DATE <<FK>>
-    # sales_rep_email : STRING <<FK>>
   }
 
   class FCT_DEALER_SNAPSHOT <<(F,#FF6B6B)>> {
@@ -108,7 +106,6 @@ DIM_PRO_BUSINESS_MASTER "1" --o "0..*" FCT_DEALER_EVENTS
 DIM_PRO_BUSINESS_MASTER "1" --o "0..*" FCT_LEAD_FUNNEL
 DIM_PRO_BUSINESS_MASTER "1" --o "0..*" FCT_DEALER_SNAPSHOT
 DIM_PRO_CONTACT_MASTER "1" --o "0..*" FCT_CONTACT_EVENTS
-DIM_SALES_REP "1" ..o "0..*" FCT_LEAD_FUNNEL
 DIM_DATE "1" ..o "0..*" FCT_DEALER_EVENTS
 DIM_DATE "1" ..o "0..*" FCT_CONTACT_EVENTS
 DIM_DATE "1" ..o "0..*" FCT_LEAD_FUNNEL
@@ -229,7 +226,6 @@ package "DIMENSIONS (Thin - Attributes Only)" #E8F4FD {
     sales_channel : STRING
   }
 
-  class DIM_SALES_REP <<(D,#4ECDC4)>> {
     + sales_rep_email : STRING <<PK>>
     --
     sales_rep_name : STRING
@@ -291,7 +287,6 @@ package "FACTS (Measures Only)" #FBE9E7 {
     + event_id : STRING <<PK>>
     # pro_business_id : STRING <<FK>>
     # event_date : DATE <<FK>>
-    # sales_rep_email : STRING <<FK>>
     --
     event_time : TIMESTAMP
     funnel_stage : STRING {GUEST|LEAD|APPROVED|REJECTED|FAILED}
@@ -342,7 +337,6 @@ DIM_PRO_BUSINESS_MASTER "1" --o "0..*" FCT_DEALER_EVENTS : pro_business_id
 DIM_PRO_BUSINESS_MASTER "1" --o "0..*" FCT_LEAD_FUNNEL : pro_business_id
 DIM_PRO_BUSINESS_MASTER "1" --o "0..*" FCT_DEALER_SNAPSHOT : pro_business_id
 DIM_PRO_CONTACT_MASTER "1" --o "0..*" FCT_CONTACT_EVENTS : pro_contact_id
-DIM_SALES_REP "1" ..o "0..*" FCT_LEAD_FUNNEL : sales_rep_email
 DIM_DATE "1" ..o "0..*" FCT_DEALER_EVENTS : event_date
 DIM_DATE "1" ..o "0..*" FCT_CONTACT_EVENTS : event_date
 DIM_DATE "1" ..o "0..*" FCT_LEAD_FUNNEL : event_date
