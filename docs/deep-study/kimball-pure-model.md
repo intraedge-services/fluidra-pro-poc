@@ -13,24 +13,24 @@
 ```mermaid
 erDiagram
     %% ===== DIMENSIONS (Thin - Attributes Only) =====
-    DIM_DEALER ||--o{ FCT_DEALER_EVENTS : "pro_business_id"
-    DIM_DEALER ||--o{ FCT_LEAD_FUNNEL : "pro_business_id"
-    DIM_DEALER ||--o{ FCT_DEALER_SNAPSHOT : "pro_business_id"
-    DIM_CONTACT ||--o{ FCT_CONTACT_EVENTS : "pro_contact_id"
+    DIM_PRO_BUSINESS_MASTER ||--o{ FCT_DEALER_EVENTS : "pro_business_id"
+    DIM_PRO_BUSINESS_MASTER ||--o{ FCT_LEAD_FUNNEL : "pro_business_id"
+    DIM_PRO_BUSINESS_MASTER ||--o{ FCT_DEALER_SNAPSHOT : "pro_business_id"
+    DIM_PRO_CONTACT_MASTER ||--o{ FCT_CONTACT_EVENTS : "pro_contact_id"
     DIM_DATE ||--o{ FCT_DEALER_EVENTS : "event_date"
     DIM_DATE ||--o{ FCT_CONTACT_EVENTS : "event_date"
     DIM_DATE ||--o{ FCT_LEAD_FUNNEL : "event_date"
     DIM_DATE ||--o{ FCT_DEALER_SNAPSHOT : "snapshot_date"
     DIM_SALES_REP ||--o{ FCT_LEAD_FUNNEL : "sales_rep_email"
-    DIM_DEALER ||--o{ DIM_CONTACT : "pro_business_id"
-    DIM_DEALER ||--o{ DIM_DISTRIBUTOR : "pro_business_id"
-    DIM_DEALER ||--o{ DIM_PROGRAM_OPT_IN : "pro_business_id"
-    DIM_DEALER ||--o{ DIM_SUBSCRIPTION : "pro_business_id"
-    DIM_DEALER ||--o{ DIM_LOCATION : "pro_business_id"
-    BRIDGE_CONTACT_DEALER }o--|| DIM_DEALER : "pro_business_id"
-    BRIDGE_CONTACT_DEALER }o--|| DIM_CONTACT : "pro_contact_id"
+    DIM_PRO_BUSINESS_MASTER ||--o{ DIM_PRO_CONTACT_MASTER : "pro_business_id"
+    DIM_PRO_BUSINESS_MASTER ||--o{ DIM_PRO_ASSOCIATED_DISTRIBUTOR : "pro_business_id"
+    DIM_PRO_BUSINESS_MASTER ||--o{ DIM_PRO_PROGRAM_OPT_IN : "pro_business_id"
+    DIM_PRO_BUSINESS_MASTER ||--o{ DIM_PRO_SUBSCRIPTION_MASTER : "pro_business_id"
+    DIM_PRO_BUSINESS_MASTER ||--o{ DIM_PRO_BUSINESS_LOCATION_MASTER : "pro_business_id"
+    BRIDGE_PRO_CONTACT_BUSINESS }o--|| DIM_PRO_BUSINESS_MASTER : "pro_business_id"
+    BRIDGE_PRO_CONTACT_BUSINESS }o--|| DIM_PRO_CONTACT_MASTER : "pro_contact_id"
 
-    DIM_DEALER {
+    DIM_PRO_BUSINESS_MASTER {
         string pro_business_id PK
         string business_name
         string doing_business_as
@@ -59,7 +59,7 @@ erDiagram
         timestamp created_at
     }
 
-    DIM_CONTACT {
+    DIM_PRO_CONTACT_MASTER {
         string pro_contact_id PK
         string pro_business_id FK "via BRIDGE"
         string contact_type "OWNER|TECHNICIAN|OFFICE ADMIN|CO-OWNER|CSC"
@@ -73,7 +73,7 @@ erDiagram
         timestamp created_at
     }
 
-    DIM_DISTRIBUTOR {
+    DIM_PRO_ASSOCIATED_DISTRIBUTOR {
         string pro_business_id FK
         string distributor_name PK
         string distributor_account_number PK
@@ -82,7 +82,7 @@ erDiagram
         timestamp active_date
     }
 
-    DIM_PROGRAM_OPT_IN {
+    DIM_PRO_PROGRAM_OPT_IN {
         string pro_business_id FK
         string program_name PK "PROEDGE|SERVICEPRO|FLATRATE|RETAIL SELECT"
         string program_status "ACTIVE|PENDING|DECLINED|INACTIVE"
@@ -90,7 +90,7 @@ erDiagram
         string source
     }
 
-    DIM_SUBSCRIPTION {
+    DIM_PRO_SUBSCRIPTION_MASTER {
         string pro_business_id FK
         string subscription_id PK
         string subscription_name "ION POOL CARE"
@@ -98,7 +98,7 @@ erDiagram
         timestamp program_start_date
     }
 
-    DIM_LOCATION {
+    DIM_PRO_BUSINESS_LOCATION_MASTER {
         string pro_location_id PK
         string pro_business_id FK
         string location_type "PRIMARY_BILL_TO|PRIMARY_SHIP_TO|STORE"
@@ -133,7 +133,7 @@ erDiagram
         string sales_channel
     }
 
-    BRIDGE_CONTACT_DEALER {
+    BRIDGE_PRO_CONTACT_BUSINESS {
         string pro_business_id FK
         string pro_contact_id FK
         string relationship_type "PRIMARY_CONTACT"
@@ -203,25 +203,25 @@ erDiagram
 
 | Object | Before (Current) | After (Pure Kimball) |
 |--------|-----------------|---------------------|
-| `DIM_PRO_BUSINESS_MASTER` | Has 11 count/aggregate columns | → Renamed `OBT_DEALER_PROFILE` (BI layer) |
-| `DIM_DEALER` (new) | Didn't exist as thin dim | → Pure attributes only, no counts |
+| `DIM_PRO_BUSINESS_MASTER` (old — wide) | Had 11 count/aggregate columns | → Renamed `OBT_DEALER_PROFILE` (BI layer) |
+| `DIM_PRO_BUSINESS_MASTER` (new — thin) | Didn't exist as thin dim | → Pure attributes only, no counts |
 | `FCT_DEALER_SNAPSHOT` (new) | Didn't exist | → Periodic snapshot with all numeric measures |
-| `DIM_CONTACT` | Has `days_since_last_login` | → Remove calculated numeric, keep only attributes |
-| `DIM_DISTRIBUTOR` | ✅ Already correct | No change needed |
-| `DIM_PROGRAM_OPT_IN` | ✅ Already correct | No change needed |
-| `DIM_SUBSCRIPTION` | ✅ Already correct | No change needed |
-| `DIM_LOCATION` | ✅ Already correct | No change needed |
+| `DIM_PRO_CONTACT_MASTER` | Has `days_since_last_login` | → Remove calculated numeric, keep only attributes |
+| `DIM_PRO_ASSOCIATED_DISTRIBUTOR` | ✅ Already correct | No change needed |
+| `DIM_PRO_PROGRAM_OPT_IN` | ✅ Already correct | No change needed |
+| `DIM_PRO_SUBSCRIPTION_MASTER` | ✅ Already correct | No change needed |
+| `DIM_PRO_BUSINESS_LOCATION_MASTER` | ✅ Already correct | No change needed |
 | `DIM_KEY_ACCOUNT_TYPE` | ✅ Already correct | No change needed |
-| `BRIDGE_CONTACT_DEALER` | ✅ Already correct | No change needed |
+| `BRIDGE_PRO_CONTACT_BUSINESS` | ✅ Already correct | No change needed |
 
 ---
 
 ## 3. SQL — Only Changed/New Objects
 
-### DIM_DEALER (NEW — thin, attributes only)
+### DIM_PRO_BUSINESS_MASTER (NEW — thin, attributes only)
 
 ```sql
-CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_DEALER AS
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_BUSINESS_MASTER AS
 SELECT
     pro_business_id,
     business_name,
@@ -288,12 +288,12 @@ SELECT
 FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESSES;
 ```
 
-### DIM_CONTACT (UPDATED — remove calculated measure)
+### DIM_PRO_CONTACT_MASTER (UPDATED — remove calculated measure)
 
 ```sql
 -- Change from current: REMOVED days_since_last_login (measure)
 -- Kept last_login_date as a timestamp attribute (it's a descriptor of "when did they last login")
-CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_CONTACT AS
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_CONTACT_MASTER AS
 WITH contact_standalone AS (SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_CONTACTS),
 bridge AS (
     SELECT DISTINCT
@@ -366,7 +366,7 @@ contact_counts AS (
     SELECT b.pro_business_id,
         COUNT(*) AS total_contacts,
         COUNT(CASE WHEN c.login_status = 'ACTIVE' THEN 1 END) AS active_contacts
-    FROM ANALYTICS_DB_DEV.DIMENSIONS.BRIDGE_CONTACT_DEALER b
+    FROM ANALYTICS_DB_DEV.DIMENSIONS.BRIDGE_PRO_CONTACT_BUSINESS b
     JOIN ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_CONTACTS c ON b.pro_contact_id = c.pro_contact_id
     GROUP BY b.pro_business_id
 )
@@ -412,7 +412,7 @@ LEFT JOIN contact_counts cc ON d.pro_business_id = cc.pro_business_id;
 ```sql
 -- This is the EXISTING DIM_PRO_BUSINESS_MASTER, just renamed.
 -- It's NOT a dimension. It's a One Big Table for BI tools.
--- Joins DIM_DEALER attributes + FCT_DEALER_SNAPSHOT measures in one wide row.
+-- Joins DIM_PRO_BUSINESS_MASTER attributes + FCT_DEALER_SNAPSHOT measures in one wide row.
 CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.MARTS.OBT_DEALER_PROFILE AS
 SELECT
     d.*,
@@ -430,8 +430,9 @@ SELECT
     f.active_contacts,
     f.days_since_last_login,
     f.health_status
-FROM ANALYTICS_DB_DEV.DIMENSIONS.DIM_DEALER d
+FROM ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_BUSINESS_MASTER d
 LEFT JOIN ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT f
+    ON d.pro_business_id = f.pro_business_id;
     ON d.pro_business_id = f.pro_business_id;
 ```
 
@@ -443,14 +444,18 @@ These are already pure — attributes only, no measures:
 
 | Dimension | Status | Reason |
 |-----------|:------:|--------|
-| `DIM_DISTRIBUTOR` | ✅ Correct | Only has name, number, status, source, date |
-| `DIM_PROGRAM_OPT_IN` | ✅ Correct | Only has name, status, date, source |
-| `DIM_SUBSCRIPTION` | ✅ Correct | Only has id, name, status, date |
-| `DIM_LOCATION` | ✅ Correct | Only has id, type, name, city/state/zip |
+| `DIM_PRO_ASSOCIATED_DISTRIBUTOR` | ✅ Correct | Only has name, number, status, source, date |
+| `DIM_PRO_PROGRAM_OPT_IN` | ✅ Correct | Only has name, status, date, source |
+| `DIM_PRO_SUBSCRIPTION_MASTER` | ✅ Correct | Only has id, name, status, date |
+| `DIM_PRO_BUSINESS_LOCATION_MASTER` | ✅ Correct | Only has id, type, name, city/state/zip |
 | `DIM_KEY_ACCOUNT_TYPE` | ✅ Correct | Only has id, name, role, class |
 | `DIM_SALES_REP` | ✅ Correct | Only has email, name |
 | `DIM_DATE` | ✅ Correct | Standard date dimension |
-| `BRIDGE_CONTACT_DEALER` | ✅ Correct | Only FKs + relationship_type |
+| `BRIDGE_PRO_CONTACT_BUSINESS` | ✅ Correct | Only FKs + relationship_type |
+| `DIM_KEY_ACCOUNT_TYPE` | ✅ Correct | Only has id, name, role, class |
+| `DIM_SALES_REP` | ✅ Correct | Only has email, name |
+| `DIM_DATE` | ✅ Correct | Standard date dimension |
+| `BRIDGE_PRO_CONTACT_BUSINESS` | ✅ Correct | Only FKs + relationship_type |
 
 ---
 
@@ -460,16 +465,16 @@ These are already pure — attributes only, no measures:
 ┌─────────────────────────────────────────────────────────────┐
 │  DIMENSIONS (Thin — Attributes Only)                         │
 ├─────────────────────────────────────────────────────────────┤
-│  DIM_DEALER          │ WHO is the dealer (profile)           │
-│  DIM_CONTACT         │ WHO is the user (profile)             │
-│  DIM_DISTRIBUTOR     │ WHAT distributors are linked           │
-│  DIM_PROGRAM_OPT_IN  │ WHAT programs are enrolled            │
-│  DIM_SUBSCRIPTION    │ WHAT IoT subscriptions                │
-│  DIM_LOCATION        │ WHERE are they located                │
-│  DIM_KEY_ACCOUNT_TYPE│ WHAT type of key account              │
-│  DIM_SALES_REP       │ WHO manages the lead                  │
-│  DIM_DATE            │ WHEN did it happen                    │
-│  BRIDGE_CONTACT_DEALER│ Links contact ↔ dealer               │
+│  DIM_PRO_BUSINESS_MASTER    │ WHO is the dealer (profile)           │
+│  DIM_PRO_CONTACT_MASTER    │ WHO is the user (profile)             │
+│  DIM_PRO_ASSOCIATED_DISTRIBUTOR │ WHAT distributors are linked      │
+│  DIM_PRO_PROGRAM_OPT_IN   │ WHAT programs are enrolled            │
+│  DIM_PRO_SUBSCRIPTION_MASTER │ WHAT IoT subscriptions              │
+│  DIM_PRO_BUSINESS_LOCATION_MASTER │ WHERE are they located         │
+│  DIM_KEY_ACCOUNT_TYPE      │ WHAT type of key account              │
+│  DIM_SALES_REP             │ WHO manages the lead                  │
+│  DIM_DATE                  │ WHEN did it happen                    │
+│  BRIDGE_PRO_CONTACT_BUSINESS │ Links contact ↔ dealer             │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
