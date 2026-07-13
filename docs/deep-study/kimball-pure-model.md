@@ -8,11 +8,10 @@
 
 ---
 
-## 1. Mermaid ER Diagram — Pure Kimball
+## 1. Mermaid ER Diagram — Pure Kimball (PK/FK Only)
 
 ```mermaid
 erDiagram
-    %% ===== DIMENSIONS (Thin - Attributes Only) =====
     DIM_PRO_BUSINESS_MASTER ||--o{ FCT_DEALER_EVENTS : "pro_business_id"
     DIM_PRO_BUSINESS_MASTER ||--o{ FCT_LEAD_FUNNEL : "pro_business_id"
     DIM_PRO_BUSINESS_MASTER ||--o{ FCT_DEALER_SNAPSHOT : "pro_business_id"
@@ -31,166 +30,61 @@ erDiagram
 
     DIM_PRO_BUSINESS_MASTER {
         string pro_business_id PK
-        string business_name
-        string doing_business_as
-        string business_status "ACTIVE|LEAD|GUEST|REJECTED"
-        string login_status "ACTIVE|PENDING"
-        string customer_type
-        string primary_business_type "BUILDER|SERVICE|RETAILER"
-        string business_segment "BUILD|SERVICE|RETAIL"
-        string channel "NEW CONSTRUCTION|AFTERMARKET"
-        string customer_class
-        string sales_channel
-        string registration_source "PROWEB|SALESFORCE"
-        string fluidra_account_number "Join key to revenue"
-        string crm_lead_id "Salesforce link"
-        string key_account_type_name
-        string key_account_type_role
-        string rewards_program_level "PROEDGE|SERVICEPRO|RETAIL SELECT"
-        string rewards_achiever_level "PARTNER|ELITE|MEMBER"
-        string rewards_program_status "ACTIVE|PENDING"
-        string rewards_rebate_pay_type "AP Voucher|Debit VISA"
-        string billing_city
-        string billing_state
-        string billing_zip
-        string billing_country
-        timestamp rewards_signup_date
-        timestamp created_at
     }
-
     DIM_PRO_CONTACT_MASTER {
         string pro_contact_id PK
-        string pro_business_id FK "via BRIDGE"
-        string contact_type "OWNER|TECHNICIAN|OFFICE ADMIN|CO-OWNER|CSC"
-        string first_name
-        string last_name
-        string email
-        string login_status "ACTIVE|PENDING|NOLOGIN|DISABLE_PENDING"
-        string username
-        string cognito_sub_id "Join key to Cognito"
-        string contact_status
-        timestamp created_at
+        string pro_business_id FK
     }
-
+    DIM_PRO_BUSINESS_LOCATION_MASTER {
+        string pro_location_id PK
+        string pro_business_id FK
+    }
     DIM_PRO_ASSOCIATED_DISTRIBUTOR {
         string pro_business_id FK
         string distributor_name PK
         string distributor_account_number PK
-        string distributor_account_status "ACTIVE|PENDING ACTIVE|INACTIVE"
-        string source "MANUAL|PROWEB"
-        timestamp active_date
     }
-
     DIM_PRO_PROGRAM_OPT_IN {
         string pro_business_id FK
-        string program_name PK "PROEDGE|SERVICEPRO|FLATRATE|RETAIL SELECT"
-        string program_status "ACTIVE|PENDING|DECLINED|INACTIVE"
-        timestamp program_opt_in_date
-        string source
+        string program_name PK
     }
-
     DIM_PRO_SUBSCRIPTION_MASTER {
-        string pro_business_id FK
         string subscription_id PK
-        string subscription_name "ION POOL CARE"
-        string subscription_status "ACTIVE"
-        timestamp program_start_date
-    }
-
-    DIM_PRO_BUSINESS_LOCATION_MASTER {
-        string pro_location_id PK
         string pro_business_id FK
-        string location_type "PRIMARY_BILL_TO|PRIMARY_SHIP_TO|STORE"
-        string location_name
-        string location_status
-        string city
-        string state
-        string zip
-        string country
     }
-
-        string sales_rep_email PK
-        string sales_rep_name
-    }
-
-    DIM_DATE {
-        date date_key PK
-        int day_of_week
-        int week_of_year
-        int month_number
-        int quarter
-        int year
-        boolean is_weekend
-    }
-
     DIM_KEY_ACCOUNT_TYPE {
         string key_account_type_id PK
-        string key_account_type_name
-        string key_account_type_role
-        string customer_class
-        string sales_channel
     }
-
+    DIM_DATE {
+        date date_key PK
+    }
     BRIDGE_PRO_CONTACT_BUSINESS {
         string pro_business_id FK
         string pro_contact_id FK
-        string relationship_type "PRIMARY_CONTACT"
     }
-
-    %% ===== FACTS (Measures Only) =====
     FCT_DEALER_EVENTS {
         string event_id PK
         string pro_business_id FK
         date event_date FK
-        timestamp event_time
-        string event_detail_type
-        string metadata_event_type
-        int distributor_count "measure"
-        int program_opt_in_count "measure"
-        int subscription_count "measure"
-        int is_created_event "flag 0|1"
-        int is_approved_event "flag 0|1"
-        int is_rejected_event "flag 0|1"
-        int is_creation_failed "flag 0|1"
-        string failure_reason "degenerate dim"
     }
-
     FCT_CONTACT_EVENTS {
         string event_id PK
         string pro_contact_id FK
         string pro_business_id FK
         date event_date FK
-        timestamp event_time
-        string contact_type "degenerate dim"
-        int is_created_event "flag 0|1"
-        int is_login_created_event "flag 0|1"
-        int is_deleted_event "flag 0|1"
     }
-
     FCT_LEAD_FUNNEL {
         string event_id PK
         string pro_business_id FK
         date event_date FK
-        timestamp event_time
-        string funnel_stage "GUEST|LEAD|APPROVED|REJECTED|FAILED"
-        string crm_lead_id "degenerate dim"
-        int seconds_in_stage "measure"
-        string failure_reason "degenerate dim"
     }
-
     FCT_DEALER_SNAPSHOT {
         string pro_business_id FK
         date snapshot_date FK
-        int total_distributor_count "measure"
-        int active_distributor_count "measure"
-        int total_program_count "measure"
-        int active_program_count "measure"
-        int total_subscription_count "measure"
-        int active_subscription_count "measure"
-        int days_since_last_login "measure"
-        int total_contacts "measure"
-        int active_contacts "measure"
-        string health_status "derived category"
+    }
+    FCT_RECONCILIATION {
+        string event_id PK
+        date event_date FK
     }
 ```
 
