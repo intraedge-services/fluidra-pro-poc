@@ -21,7 +21,6 @@ erDiagram
     DIM_DATE ||--o{ FCT_CONTACT_EVENTS : "event_date"
     DIM_DATE ||--o{ FCT_LEAD_FUNNEL : "event_date"
     DIM_DATE ||--o{ FCT_DEALER_SNAPSHOT : "snapshot_date"
-    DIM_SALES_REP ||--o{ FCT_LEAD_FUNNEL : "sales_rep_email"
     DIM_PRO_BUSINESS_MASTER ||--o{ DIM_PRO_CONTACT_MASTER : "pro_business_id"
     DIM_PRO_BUSINESS_MASTER ||--o{ DIM_PRO_ASSOCIATED_DISTRIBUTOR : "pro_business_id"
     DIM_PRO_BUSINESS_MASTER ||--o{ DIM_PRO_PROGRAM_OPT_IN : "pro_business_id"
@@ -110,7 +109,6 @@ erDiagram
         string country
     }
 
-    DIM_SALES_REP {
         string sales_rep_email PK
         string sales_rep_name
     }
@@ -173,7 +171,6 @@ erDiagram
         string event_id PK
         string pro_business_id FK
         date event_date FK
-        string sales_rep_email FK
         timestamp event_time
         string funnel_stage "GUEST|LEAD|APPROVED|REJECTED|FAILED"
         string crm_lead_id "degenerate dim"
@@ -468,11 +465,9 @@ These are already pure — attributes only, no measures:
 | `DIM_PRO_SUBSCRIPTION_MASTER` | ✅ Correct | Only has id, name, status, date |
 | `DIM_PRO_BUSINESS_LOCATION_MASTER` | ✅ Correct | Only has id, type, name, city/state/zip |
 | `DIM_KEY_ACCOUNT_TYPE` | ✅ Correct | Only has id, name, role, class |
-| `DIM_SALES_REP` | ✅ Correct | Only has email, name |
 | `DIM_DATE` | ✅ Correct | Standard date dimension |
 | `BRIDGE_PRO_CONTACT_BUSINESS` | ✅ Correct | Only FKs + relationship_type |
 | `DIM_KEY_ACCOUNT_TYPE` | ✅ Correct | Only has id, name, role, class |
-| `DIM_SALES_REP` | ✅ Correct | Only has email, name |
 | `DIM_DATE` | ✅ Correct | Standard date dimension |
 | `BRIDGE_PRO_CONTACT_BUSINESS` | ✅ Correct | Only FKs + relationship_type |
 
@@ -491,7 +486,6 @@ These are already pure — attributes only, no measures:
 │  DIM_PRO_SUBSCRIPTION_MASTER │ WHAT IoT subscriptions              │
 │  DIM_PRO_BUSINESS_LOCATION_MASTER │ WHERE are they located         │
 │  DIM_KEY_ACCOUNT_TYPE      │ WHAT type of key account              │
-│  DIM_SALES_REP             │ WHO manages the lead                  │
 │  DIM_DATE                  │ WHEN did it happen                    │
 │  BRIDGE_PRO_CONTACT_BUSINESS │ Links contact ↔ dealer             │
 └─────────────────────────────────────────────────────────────┘
