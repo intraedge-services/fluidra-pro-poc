@@ -47,9 +47,6 @@ package "DIMENSIONS" #E8F4FD {
     + key_account_type_id : STRING <<PK>>
   }
 
-    + sales_rep_email : STRING <<PK>>
-  }
-
   class DIM_DATE <<(D,#4ECDC4)>> {
     + date_key : DATE <<PK>>
   }
@@ -224,11 +221,6 @@ package "DIMENSIONS (Thin - Attributes Only)" #E8F4FD {
     key_account_type_role : STRING
     customer_class : STRING
     sales_channel : STRING
-  }
-
-    + sales_rep_email : STRING <<PK>>
-    --
-    sales_rep_name : STRING
   }
 
   class DIM_DATE <<(D,#4ECDC4)>> {
