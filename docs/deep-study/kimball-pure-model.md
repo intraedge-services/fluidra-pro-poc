@@ -348,22 +348,292 @@ WHERE C1 != 'RECORD_METADATA'
 
 ---
 
-## 4. Dims That Need NO Change
+## 4. All Remaining Dimension & Fact SQLs
 
-These are already pure — attributes only, no measures:
+### DIM_PRO_ASSOCIATED_DISTRIBUTOR
 
-| Dimension | Status | Reason |
-|-----------|:------:|--------|
-| `DIM_PRO_ASSOCIATED_DISTRIBUTOR` | ✅ Correct | Only has name, number, status, source, date |
-| `DIM_PRO_PROGRAM_OPT_IN` | ✅ Correct | Only has name, status, date, source |
-| `DIM_PRO_SUBSCRIPTION_MASTER` | ✅ Correct | Only has id, name, status, date |
-| `DIM_PRO_BUSINESS_LOCATION_MASTER` | ✅ Correct | Only has id, type, name, city/state/zip |
-| `DIM_KEY_ACCOUNT_TYPE` | ✅ Correct | Only has id, name, role, class |
-| `DIM_DATE` | ✅ Correct | Standard date dimension |
-| `BRIDGE_PRO_CONTACT_BUSINESS` | ✅ Correct | Only FKs + relationship_type |
-| `DIM_KEY_ACCOUNT_TYPE` | ✅ Correct | Only has id, name, role, class |
-| `DIM_DATE` | ✅ Correct | Standard date dimension |
-| `BRIDGE_PRO_CONTACT_BUSINESS` | ✅ Correct | Only FKs + relationship_type |
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_ASSOCIATED_DISTRIBUTOR AS
+SELECT
+    pro_business_id,
+    distributor_name,
+    distributor_account_number,
+    distributor_account_status,
+    fluidra_account_number,
+    source,
+    active_date,
+    distributor_created_at,
+    distributor_updated_at,
+    distributor_created_by,
+    distributor_updated_by,
+    event_time AS last_event_time
+FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESS_DISTRIBUTORS;
+```
+
+### DIM_PRO_PROGRAM_OPT_IN
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_PROGRAM_OPT_IN AS
+SELECT
+    pro_business_id,
+    program_name,
+    program_status,
+    program_opt_in_date,
+    program_start_date,
+    fluidra_account_number,
+    source,
+    program_created_at,
+    program_updated_at,
+    program_created_by,
+    program_updated_by,
+    event_time AS last_event_time
+FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESS_PROGRAM_OPTINS;
+```
+
+### DIM_PRO_SUBSCRIPTION_MASTER
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_SUBSCRIPTION_MASTER AS
+SELECT
+    pro_business_id,
+    subscription_id,
+    subscription_name,
+    subscription_status,
+    program_start_date,
+    source,
+    subscription_created_at,
+    subscription_updated_at,
+    subscription_created_by,
+    subscription_updated_by,
+    event_time AS last_event_time
+FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESS_SUBSCRIPTIONS;
+```
+
+### DIM_PRO_BUSINESS_LOCATION_MASTER
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_BUSINESS_LOCATION_MASTER AS
+SELECT
+    pro_location_id,
+    pro_business_id,
+    location_name,
+    location_type,
+    location_status,
+    street_line_1,
+    street_line_2,
+    city,
+    state,
+    zip,
+    country,
+    phone_number,
+    lead_management_email,
+    hide_address,
+    hide_location,
+    service_zip_count,
+    created_at,
+    event_time AS last_event_time
+FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_LOCATIONS;
+```
+
+### DIM_KEY_ACCOUNT_TYPE
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_KEY_ACCOUNT_TYPE AS
+SELECT
+    key_account_type_id,
+    key_account_type_name,
+    key_account_type_role,
+    customer_class,
+    sales_channel,
+    program_name,
+    achiever_level,
+    enable_zodiac_premium,
+    override_achiever_level_role,
+    e_statement_enabled,
+    print_statements,
+    created_at,
+    created_by,
+    event_time AS last_event_time
+FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_KEY_ACCOUNT_TYPES;
+```
+
+### DIM_DATE
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_DATE AS
+SELECT
+    date_day AS date_key,
+    DAYOFWEEK(date_day) AS day_of_week,
+    DAYNAME(date_day) AS day_name,
+    DAY(date_day) AS day_of_month,
+    WEEKOFYEAR(date_day) AS week_of_year,
+    MONTH(date_day) AS month_number,
+    MONTHNAME(date_day) AS month_name,
+    QUARTER(date_day) AS quarter,
+    YEAR(date_day) AS year,
+    CASE WHEN DAYOFWEEK(date_day) IN (0, 6) THEN TRUE ELSE FALSE END AS is_weekend
+FROM (
+    SELECT DATEADD(day, seq4(), '2023-01-01')::DATE AS date_day
+    FROM TABLE(GENERATOR(ROWCOUNT => 1461))
+);
+```
+
+### FCT_DEALER_EVENTS
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_DEALER_EVENTS AS
+WITH source AS (
+    SELECT PARSE_JSON(C1) AS metadata_json, PARSE_JSON(C2) AS payload
+    FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
+    WHERE C1 != 'RECORD_METADATA'
+      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
+),
+parsed AS (
+    SELECT
+        payload:id::STRING AS event_id,
+        payload:"detail-type"::STRING AS event_detail_type,
+        payload:time::TIMESTAMP_NTZ AS event_time,
+        payload:time::DATE AS event_date,
+        metadata_json:offset::NUMBER AS kafka_offset,
+        metadata_json:partition::NUMBER AS kafka_partition,
+        payload:detail.metadata.eventType::STRING AS metadata_event_type,
+        payload:detail.metadata.correlationId::STRING AS correlation_id,
+        payload:detail.metadata.service::STRING AS metadata_service,
+        payload:detail.data.proBusinessId::STRING AS pro_business_id,
+        payload:detail.data.primaryContact.proContactId::STRING AS primary_contact_id,
+        payload:detail.data.primaryBillingLocation.proLocationId::STRING AS billing_location_id,
+        payload:detail.data.status::STRING AS business_status,
+        payload:detail.data.loginStatus::STRING AS login_status,
+        payload:detail.data.source::STRING AS source,
+        payload:detail.data.primaryBusinessType::STRING AS primary_business_type,
+        payload:detail.data.businessSegment::STRING AS business_segment,
+        COALESCE(ARRAY_SIZE(payload:detail.data.distributors), 0) AS distributor_count,
+        COALESCE(ARRAY_SIZE(payload:detail.data.programOptIns), 0) AS program_opt_in_count,
+        COALESCE(ARRAY_SIZE(payload:detail.data.subscriptions), 0) AS subscription_count,
+        CASE WHEN payload:detail.metadata.eventType::STRING = 'created' THEN 1 ELSE 0 END AS is_created_event,
+        CASE WHEN payload:detail.metadata.eventType::STRING = 'updated' THEN 1 ELSE 0 END AS is_updated_event,
+        CASE WHEN payload:detail.metadata.eventType::STRING = 'approved' THEN 1 ELSE 0 END AS is_approved_event,
+        CASE WHEN payload:detail.metadata.eventType::STRING = 'rejected' THEN 1 ELSE 0 END AS is_rejected_event,
+        CASE WHEN payload:"detail-type"::STRING LIKE '%creation-failed%' THEN 1 ELSE 0 END AS is_creation_failed,
+        CASE WHEN payload:"detail-type"::STRING LIKE '%update-requested%' THEN 1 ELSE 0 END AS is_update_requested,
+        payload:detail.data.utm.utm_source::STRING AS utm_source,
+        payload:detail.data.utm.utm_campaign::STRING AS utm_campaign,
+        payload:detail.data.reason::STRING AS failure_reason,
+        TRY_TO_TIMESTAMP_NTZ(payload:detail.data.auditInfo.createdAt::STRING) AS record_created_at
+    FROM source
+)
+SELECT * FROM parsed
+QUALIFY ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY kafka_offset DESC) = 1;
+```
+
+### FCT_CONTACT_EVENTS
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS AS
+WITH source AS (
+    SELECT PARSE_JSON(C1) AS metadata_json, PARSE_JSON(C2) AS payload
+    FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
+    WHERE C1 != 'RECORD_METADATA'
+      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-contact-master%'
+),
+parsed AS (
+    SELECT
+        payload:id::STRING AS event_id,
+        payload:"detail-type"::STRING AS event_detail_type,
+        payload:time::TIMESTAMP_NTZ AS event_time,
+        payload:time::DATE AS event_date,
+        metadata_json:offset::NUMBER AS kafka_offset,
+        payload:detail.metadata.eventType::STRING AS metadata_event_type,
+        payload:detail.metadata.correlationId::STRING AS correlation_id,
+        payload:detail.data.proContactId::STRING AS pro_contact_id,
+        payload:detail.data.proBusinessId::STRING AS pro_business_id,
+        payload:detail.data.contactType::STRING AS contact_type,
+        payload:detail.data.loginStatus::STRING AS login_status,
+        payload:detail.data.status::STRING AS contact_status,
+        payload:detail.data.email::STRING AS email,
+        CASE WHEN payload:"detail-type"::STRING LIKE '%created.v1' THEN 1 ELSE 0 END AS is_created_event,
+        CASE WHEN payload:"detail-type"::STRING LIKE '%updated.v1' THEN 1 ELSE 0 END AS is_updated_event,
+        CASE WHEN payload:"detail-type"::STRING LIKE '%login-created%' THEN 1 ELSE 0 END AS is_login_created_event,
+        CASE WHEN payload:"detail-type"::STRING LIKE '%deleted%' THEN 1 ELSE 0 END AS is_deleted_event,
+        TRY_TO_TIMESTAMP_NTZ(payload:detail.data.auditInfo.createdAt::STRING) AS record_created_at
+    FROM source
+    WHERE payload:detail.data.proContactId IS NOT NULL
+)
+SELECT * FROM parsed
+QUALIFY ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY kafka_offset DESC) = 1;
+```
+
+### FCT_LEAD_FUNNEL
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_LEAD_FUNNEL AS
+WITH source AS (
+    SELECT PARSE_JSON(C1) AS metadata_json, PARSE_JSON(C2) AS payload
+    FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
+    WHERE C1 != 'RECORD_METADATA'
+      AND PARSE_JSON(C2):"detail-type"::STRING IN (
+          'fluidrapro.pro-business-master.created.v1',
+          'fluidrapro.pro-business-master.approved.v1',
+          'fluidrapro.pro-business-master.rejected.v1',
+          'fluidrapro.pro-business-master.creation-failed.v1',
+          'fluidrapro.pro-business-lead.approved.v1',
+          'fluidrapro.pro-business-lead.rejected.v1'
+      )
+),
+parsed AS (
+    SELECT
+        payload:id::STRING AS event_id,
+        payload:"detail-type"::STRING AS event_detail_type,
+        payload:time::TIMESTAMP_NTZ AS event_time,
+        payload:time::DATE AS event_date,
+        metadata_json:offset::NUMBER AS kafka_offset,
+        payload:detail.metadata.correlationId::STRING AS correlation_id,
+        payload:detail.data.proBusinessId::STRING AS pro_business_id,
+        payload:detail.data.primaryBusinessEmail::STRING AS primary_email,
+        payload:detail.data.crmLeadId::STRING AS crm_lead_id,
+        payload:detail.data.salesRep.name::STRING AS sales_rep_name,
+        payload:detail.data.salesRep.email::STRING AS sales_rep_email,
+        payload:detail.data.status::STRING AS business_status,
+        payload:detail.data.primaryBusinessType::STRING AS primary_business_type,
+        payload:detail.data.source::STRING AS registration_source,
+        CASE
+            WHEN payload:"detail-type"::STRING LIKE '%created%' AND payload:detail.data.status::STRING = 'GUEST' THEN 'GUEST'
+            WHEN payload:"detail-type"::STRING LIKE '%created%' AND payload:detail.data.status::STRING = 'LEAD' THEN 'LEAD_CREATED'
+            WHEN payload:"detail-type"::STRING LIKE '%created%' THEN 'BUSINESS_CREATED'
+            WHEN payload:"detail-type"::STRING = 'fluidrapro.pro-business-lead.approved.v1' THEN 'LEAD_APPROVED'
+            WHEN payload:"detail-type"::STRING = 'fluidrapro.pro-business-master.approved.v1' THEN 'BUSINESS_APPROVED'
+            WHEN payload:"detail-type"::STRING LIKE '%lead.rejected%' THEN 'LEAD_REJECTED'
+            WHEN payload:"detail-type"::STRING LIKE '%master.rejected%' THEN 'BUSINESS_REJECTED'
+            WHEN payload:"detail-type"::STRING LIKE '%creation-failed%' THEN 'CREATION_FAILED'
+            ELSE 'OTHER'
+        END AS funnel_stage,
+        TRY_TO_TIMESTAMP_NTZ(payload:detail.data.auditInfo.createdAt::STRING) AS submission_time,
+        DATEDIFF('second', TRY_TO_TIMESTAMP_NTZ(payload:detail.data.auditInfo.createdAt::STRING), payload:time::TIMESTAMP_NTZ) AS seconds_in_stage,
+        payload:detail.data.reason::STRING AS failure_reason
+    FROM source
+)
+SELECT * FROM parsed
+QUALIFY ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY kafka_offset DESC) = 1;
+```
+
+### FCT_RECONCILIATION
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_RECONCILIATION AS
+SELECT
+    event_id,
+    event_time,
+    event_time::DATE AS event_date,
+    run_id,
+    entity,
+    dq_structural_version,
+    gatekeeper_policy_version,
+    mastering_rules_version,
+    decisions_prefix,
+    diffs_prefix,
+    identity_linkage_prefix
+FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_RECONCILIATION;
+```
 
 ---
 
