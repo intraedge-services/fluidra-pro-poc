@@ -438,6 +438,25 @@ LEFT JOIN ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT f
 
 ---
 
+### BRIDGE_PRO_CONTACT_BUSINESS (resolves NULL FK on contact events)
+
+```sql
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.BRIDGE_PRO_CONTACT_BUSINESS AS
+SELECT DISTINCT
+    PARSE_JSON(C2):detail.data.proBusinessId::STRING AS pro_business_id,
+    PARSE_JSON(C2):detail.data.primaryContact.proContactId::STRING AS pro_contact_id,
+    'PRIMARY_CONTACT' AS relationship_type
+FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
+WHERE C1 != 'RECORD_METADATA'
+  AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
+  AND PARSE_JSON(C2):detail.data.primaryContact.proContactId IS NOT NULL
+  AND PARSE_JSON(C2):detail.data.proBusinessId IS NOT NULL;
+```
+
+**Why it exists:** 99% of `pro-contact-master.*` events have NULL `proBusinessId`. The only place the contact↔dealer link is recorded is inside `pro-business-master.*` events as `primaryContact.proContactId`. This bridge extracts that relationship so `DIM_PRO_CONTACT_MASTER` can resolve its FK to the dealer.
+
+---
+
 ## 4. Dims That Need NO Change
 
 These are already pure — attributes only, no measures:
