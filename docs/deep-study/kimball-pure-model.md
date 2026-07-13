@@ -519,3 +519,298 @@ These are already pure — attributes only, no measures:
 | Snapshot enables trends | Daily insert → "how did health change over time?" |
 | OBT is for BI, not modeling | Clearly labeled as consumption layer |
 | No double-counting | Measures live in ONE place (the fact), referenced by many |
+
+---
+
+## 7. Schema Type — Star vs Snowflake
+
+### What We Have
+
+```
+FCT_DEALER_EVENTS ──→ DIM_PRO_BUSINESS_MASTER (hop 1)
+                            ├── DIM_PRO_CONTACT_MASTER (hop 2)
+                            ├── DIM_PRO_BUSINESS_LOCATION_MASTER (hop 2)
+                            ├── DIM_PRO_ASSOCIATED_DISTRIBUTOR (hop 2)
+                            ├── DIM_PRO_PROGRAM_OPT_IN (hop 2)
+                            └── DIM_PRO_SUBSCRIPTION_MASTER (hop 2)
+```
+
+**This is a Snowflake Schema** — dimensions connected to other dimensions (normalized hierarchy).
+
+### Star vs Snowflake Comparison
+
+| | Star Schema | Snowflake Schema (Ours) |
+|--|-------------|------------------------|
+| Structure | Fact → Dim (flat, 1 hop) | Fact → Dim → Sub-dim (2+ hops) |
+| Example | `FCT → DIM_DISTRIBUTOR` direct | `FCT → DIM_PRO_BUSINESS_MASTER → DIM_PRO_ASSOCIATED_DISTRIBUTOR` |
+| Joins | Fewer | More |
+| Redundancy | High (denormalized) | Low (normalized) |
+| Query simplicity | Simpler | More complex |
+
+### Why Snowflake Is Correct Here
+
+1. **Grain mismatch** — A dealer event doesn't reference ONE specific distributor. The dealer has MANY distributors (1–29). There's no single `distributor_id` on the event to FK directly.
+
+2. **1:N child entities** — Distributors, programs, contacts, subscriptions are child entities OF the dealer, not attributes. They can't be denormalized into one row without variable-width columns.
+
+3. **Kimball term: "Outrigger Dimensions"** — Sub-dimensions hanging off a central dimension. Accepted and standard for this pattern.
+
+4. **Pure star alternative** — Would require flattening 29 distributors into 29 column pairs (`dist_1_name`, `dist_1_status`, `dist_2_name`...). Impractical.
+
+### Where It IS Star-Shaped
+
+The fact-to-central-dim relationships ARE star:
+- `FCT_DEALER_EVENTS → DIM_PRO_BUSINESS_MASTER` (1 hop, star)
+- `FCT_DEALER_EVENTS → DIM_DATE` (1 hop, star)
+- `FCT_CONTACT_EVENTS → DIM_PRO_CONTACT_MASTER` (1 hop, star)
+- `FCT_LEAD_FUNNEL → DIM_PRO_BUSINESS_MASTER` (1 hop, star)
+
+The snowflake extension only occurs for child-entity sub-dims.
+
+---
+
+## 8. KPI Metric Queries (All 16 Computable KPIs)
+
+### Category 1: Dealer Adoption
+
+#### KPI 1.1 — Active Dealers (login in last 30 days)
+
+```sql
+SELECT COUNT(DISTINCT f.pro_business_id) AS active_dealers_30d
+FROM ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT f
+WHERE f.days_since_last_login <= 30
+  AND f.health_status = 'HEALTHY';
+```
+
+#### KPI 1.2 — Total Enrolled Dealers
+
+```sql
+SELECT COUNT(DISTINCT d.pro_business_id) AS enrolled_dealers
+FROM ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_BUSINESS_MASTER d
+WHERE d.business_status = 'ACTIVE'
+  AND d.rewards_program_status = 'ACTIVE';
+```
+
+#### KPI 1.3 — Dealers Not Setup
+
+```sql
+SELECT COUNT(DISTINCT d.pro_business_id) AS dealers_not_setup
+FROM ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_BUSINESS_MASTER d
+WHERE d.login_status = 'PENDING';
+```
+
+#### KPI 1.4 — Inactive Dealers (active account, no login 30+ days)
+
+```sql
+SELECT COUNT(DISTINCT f.pro_business_id) AS inactive_dealers
+FROM ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT f
+JOIN ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_BUSINESS_MASTER d
+    ON f.pro_business_id = d.pro_business_id
+WHERE d.login_status = 'ACTIVE'
+  AND (f.days_since_last_login > 30 OR f.days_since_last_login IS NULL);
+```
+
+#### KPI 1.5 — New Dealer Accounts Created
+
+```sql
+SELECT COUNT(*) AS new_dealers_created
+FROM ANALYTICS_DB_DEV.FACTS.FCT_DEALER_EVENTS
+WHERE is_created_event = 1;
+
+-- By period:
+SELECT event_date, COUNT(*) AS new_dealers
+FROM ANALYTICS_DB_DEV.FACTS.FCT_DEALER_EVENTS
+WHERE is_created_event = 1
+GROUP BY event_date
+ORDER BY event_date;
+```
+
+---
+
+### Category 2: Dealer Conversion
+
+#### KPI 2.1 — Guest-to-Lead Conversion
+
+```sql
+SELECT
+    COUNT(CASE WHEN funnel_stage = 'GUEST' THEN 1 END) AS guests,
+    COUNT(CASE WHEN funnel_stage = 'LEAD_CREATED' THEN 1 END) AS leads_created,
+    COUNT(CASE WHEN funnel_stage = 'GUEST' THEN 1 END) + 
+    COUNT(CASE WHEN funnel_stage = 'LEAD_CREATED' THEN 1 END) AS total_top_funnel
+FROM ANALYTICS_DB_DEV.FACTS.FCT_LEAD_FUNNEL;
+```
+
+#### KPI 2.2 — Lead Rejection Rate
+
+```sql
+SELECT
+    COUNT(CASE WHEN funnel_stage IN ('LEAD_APPROVED','BUSINESS_APPROVED') THEN 1 END) AS approved,
+    COUNT(CASE WHEN funnel_stage IN ('LEAD_REJECTED','BUSINESS_REJECTED') THEN 1 END) AS rejected,
+    ROUND(
+        COUNT(CASE WHEN funnel_stage IN ('LEAD_REJECTED','BUSINESS_REJECTED') THEN 1 END)::FLOAT /
+        NULLIF(COUNT(CASE WHEN funnel_stage NOT IN ('GUEST','LEAD_CREATED','BUSINESS_CREATED','CREATION_FAILED','OTHER') THEN 1 END), 0) * 100, 2
+    ) AS rejection_rate_pct
+FROM ANALYTICS_DB_DEV.FACTS.FCT_LEAD_FUNNEL;
+```
+
+#### KPI 2.3 — Time to Approve Lead
+
+```sql
+SELECT
+    ROUND(AVG(seconds_in_stage), 1) AS avg_seconds_to_approve,
+    MAX(seconds_in_stage) AS max_seconds,
+    MIN(seconds_in_stage) AS min_seconds,
+    COUNT(*) AS total_approvals
+FROM ANALYTICS_DB_DEV.FACTS.FCT_LEAD_FUNNEL
+WHERE funnel_stage IN ('LEAD_APPROVED', 'BUSINESS_APPROVED');
+```
+
+#### KPI 2.4 — Approved to Rewards Activation
+
+```sql
+SELECT
+    f.pro_business_id,
+    f.event_time AS approved_time,
+    d.rewards_signup_date,
+    DATEDIFF('hour', f.event_time, d.rewards_signup_date) AS hours_to_activation
+FROM ANALYTICS_DB_DEV.FACTS.FCT_LEAD_FUNNEL f
+JOIN ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_BUSINESS_MASTER d
+    ON f.pro_business_id = d.pro_business_id
+WHERE f.funnel_stage IN ('LEAD_APPROVED', 'BUSINESS_APPROVED')
+  AND d.rewards_signup_date IS NOT NULL;
+```
+
+---
+
+### Category 3: User Adoption
+
+#### KPI 3.1 — Total Active Users
+
+```sql
+SELECT COUNT(*) AS total_active_users
+FROM ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_CONTACT_MASTER
+WHERE login_status = 'ACTIVE';
+```
+
+#### KPI 3.2 — New Technician Accounts
+
+```sql
+SELECT COUNT(DISTINCT pro_contact_id) AS new_technicians
+FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS
+WHERE is_created_event = 1
+  AND contact_type = 'TECHNICIAN';
+```
+
+#### KPI 3.3 — Users Never Setup
+
+```sql
+WITH created AS (
+    SELECT DISTINCT pro_contact_id
+    FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS
+    WHERE is_created_event = 1
+),
+login_done AS (
+    SELECT DISTINCT pro_contact_id
+    FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS
+    WHERE is_login_created_event = 1
+)
+SELECT COUNT(*) AS users_never_setup
+FROM created
+WHERE pro_contact_id NOT IN (SELECT pro_contact_id FROM login_done);
+```
+
+#### KPI 3.4 — Inactive Users
+
+```sql
+SELECT COUNT(*) AS inactive_users
+FROM ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_CONTACT_MASTER
+WHERE login_status = 'ACTIVE'
+  AND (last_login_date < DATEADD('day', -30, CURRENT_TIMESTAMP()) OR last_login_date IS NULL);
+```
+
+#### KPI 3.5 — Time to First Login
+
+```sql
+WITH created AS (
+    SELECT pro_contact_id, MIN(event_time) AS created_time
+    FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS
+    WHERE is_created_event = 1
+    GROUP BY pro_contact_id
+),
+login_done AS (
+    SELECT pro_contact_id, MIN(event_time) AS login_time
+    FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS
+    WHERE is_login_created_event = 1
+    GROUP BY pro_contact_id
+)
+SELECT
+    ROUND(AVG(DATEDIFF('minute', c.created_time, l.login_time)), 1) AS avg_minutes_to_first_login,
+    MAX(DATEDIFF('minute', c.created_time, l.login_time)) AS max_minutes
+FROM created c
+JOIN login_done l ON c.pro_contact_id = l.pro_contact_id;
+```
+
+#### KPI 3.6 — First Login Rate
+
+```sql
+WITH created AS (
+    SELECT COUNT(DISTINCT pro_contact_id) AS cnt
+    FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS WHERE is_created_event = 1
+),
+login_done AS (
+    SELECT COUNT(DISTINCT pro_contact_id) AS cnt
+    FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS WHERE is_login_created_event = 1
+)
+SELECT
+    login_done.cnt AS logins_completed,
+    created.cnt AS contacts_created,
+    ROUND(login_done.cnt::FLOAT / NULLIF(created.cnt, 0) * 100, 1) AS first_login_rate_pct
+FROM created, login_done;
+```
+
+#### KPI 3.7 — Active Users per Dealer
+
+```sql
+SELECT
+    ROUND(AVG(active_contacts), 1) AS avg_active_users_per_dealer
+FROM ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT
+WHERE active_contacts > 0;
+```
+
+---
+
+### Bonus: Registration Failure Rate
+
+```sql
+SELECT
+    COUNT(CASE WHEN funnel_stage = 'CREATION_FAILED' THEN 1 END) AS failures,
+    COUNT(CASE WHEN funnel_stage IN ('BUSINESS_CREATED','LEAD_CREATED','GUEST') THEN 1 END) AS attempts,
+    ROUND(
+        COUNT(CASE WHEN funnel_stage = 'CREATION_FAILED' THEN 1 END)::FLOAT /
+        NULLIF(COUNT(CASE WHEN funnel_stage IN ('BUSINESS_CREATED','LEAD_CREATED','GUEST','CREATION_FAILED') THEN 1 END), 0) * 100, 1
+    ) AS failure_rate_pct
+FROM ANALYTICS_DB_DEV.FACTS.FCT_LEAD_FUNNEL;
+```
+
+---
+
+## 9. KPI → Fact Table Quick Reference
+
+| KPI | Fact Table | Dim Joined | Measure Used |
+|:---:|-----------|-----------|-------------|
+| 1.1 | FCT_DEALER_SNAPSHOT | DIM_PRO_BUSINESS_MASTER | `days_since_last_login` |
+| 1.2 | — (dim only) | DIM_PRO_BUSINESS_MASTER | `rewards_program_status` filter |
+| 1.3 | — (dim only) | DIM_PRO_BUSINESS_MASTER | `login_status` filter |
+| 1.4 | FCT_DEALER_SNAPSHOT | DIM_PRO_BUSINESS_MASTER | `days_since_last_login` |
+| 1.5 | FCT_DEALER_EVENTS | — | `is_created_event` |
+| 2.1 | FCT_LEAD_FUNNEL | — | `funnel_stage` count |
+| 2.2 | FCT_LEAD_FUNNEL | — | `funnel_stage` ratio |
+| 2.3 | FCT_LEAD_FUNNEL | — | `seconds_in_stage` |
+| 2.4 | FCT_LEAD_FUNNEL | DIM_PRO_BUSINESS_MASTER | `rewards_signup_date` |
+| 3.1 | — (dim only) | DIM_PRO_CONTACT_MASTER | `login_status` filter |
+| 3.2 | FCT_CONTACT_EVENTS | — | `is_created_event` + `contact_type` |
+| 3.3 | FCT_CONTACT_EVENTS | — | absence of `is_login_created_event` |
+| 3.4 | — (dim only) | DIM_PRO_CONTACT_MASTER | `last_login_date` staleness |
+| 3.5 | FCT_CONTACT_EVENTS | — | time between created and login-created |
+| 3.6 | FCT_CONTACT_EVENTS | — | ratio of login-created / created |
+| 3.7 | FCT_DEALER_SNAPSHOT | — | `active_contacts` |
