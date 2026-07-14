@@ -12,14 +12,14 @@
 
 ```mermaid
 erDiagram
-    DIM_PRO_BUSINESS_MASTER ||--o{ FCT_DEALER_EVENTS : "pro_business_id"
+    DIM_PRO_BUSINESS_MASTER ||--o{ FCT_PRO_BUSINESS_MASTER_EVENTS : "pro_business_id"
     DIM_PRO_BUSINESS_MASTER ||--o{ FCT_LEAD_FUNNEL : "pro_business_id"
-    DIM_PRO_BUSINESS_MASTER ||--o{ FCT_DEALER_SNAPSHOT : "pro_business_id"
-    DIM_PRO_CONTACT_MASTER ||--o{ FCT_CONTACT_EVENTS : "pro_contact_id"
-    DIM_DATE ||--o{ FCT_DEALER_EVENTS : "event_date"
-    DIM_DATE ||--o{ FCT_CONTACT_EVENTS : "event_date"
+    DIM_PRO_BUSINESS_MASTER ||--o{ FCT_PRO_BUSINESS_MASTER_SNAPSHOT : "pro_business_id"
+    DIM_PRO_CONTACT_MASTER ||--o{ FCT_PRO_CONTACT_MASTER_EVENTS : "pro_contact_id"
+    DIM_DATE ||--o{ FCT_PRO_BUSINESS_MASTER_EVENTS : "event_date"
+    DIM_DATE ||--o{ FCT_PRO_CONTACT_MASTER_EVENTS : "event_date"
     DIM_DATE ||--o{ FCT_LEAD_FUNNEL : "event_date"
-    DIM_DATE ||--o{ FCT_DEALER_SNAPSHOT : "snapshot_date"
+    DIM_DATE ||--o{ FCT_PRO_BUSINESS_MASTER_SNAPSHOT : "snapshot_date"
     DIM_PRO_BUSINESS_MASTER ||--o{ DIM_PRO_CONTACT_MASTER : "pro_business_id"
     DIM_PRO_BUSINESS_MASTER ||--o{ DIM_PRO_ASSOCIATED_DISTRIBUTOR : "pro_business_id"
     DIM_PRO_BUSINESS_MASTER ||--o{ DIM_PRO_PROGRAM_OPT_IN : "pro_business_id"
@@ -62,12 +62,12 @@ erDiagram
         string pro_business_id FK
         string pro_contact_id FK
     }
-    FCT_DEALER_EVENTS {
+    FCT_PRO_BUSINESS_MASTER_EVENTS {
         string event_id PK
         string pro_business_id FK
         date event_date FK
     }
-    FCT_CONTACT_EVENTS {
+    FCT_PRO_CONTACT_MASTER_EVENTS {
         string event_id PK
         string pro_contact_id FK
         string pro_business_id FK
@@ -78,7 +78,7 @@ erDiagram
         string pro_business_id FK
         date event_date FK
     }
-    FCT_DEALER_SNAPSHOT {
+    FCT_PRO_BUSINESS_MASTER_SNAPSHOT {
         string pro_business_id FK
         date snapshot_date FK
     }
@@ -94,9 +94,9 @@ erDiagram
 
 | Object | Before (Current) | After (Pure Kimball) |
 |--------|-----------------|---------------------|
-| `DIM_PRO_BUSINESS_MASTER` (old — wide) | Had 11 count/aggregate columns | → Renamed `OBT_DEALER_PROFILE` (BI layer) |
+| `DIM_PRO_BUSINESS_MASTER` (old — wide) | Had 11 count/aggregate columns | → Renamed `OBT_PRO_BUSINESS_MASTER_PROFILE` (BI layer) |
 | `DIM_PRO_BUSINESS_MASTER` (new — thin) | Didn't exist as thin dim | → Pure attributes only, no counts |
-| `FCT_DEALER_SNAPSHOT` (new) | Didn't exist | → Periodic snapshot with all numeric measures |
+| `FCT_PRO_BUSINESS_MASTER_SNAPSHOT` (new) | Didn't exist | → Periodic snapshot with all numeric measures |
 | `DIM_PRO_CONTACT_MASTER` | Has `days_since_last_login` | → Remove calculated numeric, keep only attributes |
 | `DIM_PRO_ASSOCIATED_DISTRIBUTOR` | ✅ Already correct | No change needed |
 | `DIM_PRO_PROGRAM_OPT_IN` | ✅ Already correct | No change needed |
@@ -188,13 +188,13 @@ CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_CONTACT_MASTER AS
 WITH contact_standalone AS (SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_CONTACTS),
 bridge AS (
     SELECT DISTINCT
-        PARSE_JSON(C2):detail.data.proBusinessId::STRING AS pro_business_id,
-        PARSE_JSON(C2):detail.data.primaryContact.proContactId::STRING AS pro_contact_id
+        PARSE_JSON(RECORD_CONTENT):detail.data.proBusinessId::STRING AS pro_business_id,
+        PARSE_JSON(RECORD_CONTENT):detail.data.primaryContact.proContactId::STRING AS pro_contact_id
     FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
-    WHERE C1 != 'RECORD_METADATA'
-      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
-      AND PARSE_JSON(C2):detail.data.primaryContact.proContactId IS NOT NULL
-      AND PARSE_JSON(C2):detail.data.proBusinessId IS NOT NULL
+    WHERE RECORD_METADATA != 'RECORD_METADATA'
+      AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING LIKE '%pro-business-master%'
+      AND PARSE_JSON(RECORD_CONTENT):detail.data.primaryContact.proContactId IS NOT NULL
+      AND PARSE_JSON(RECORD_CONTENT):detail.data.proBusinessId IS NOT NULL
 )
 SELECT
     c.pro_contact_id,
@@ -218,13 +218,13 @@ FROM contact_standalone c
 LEFT JOIN bridge b ON c.pro_contact_id = b.pro_contact_id;
 ```
 
-### FCT_DEALER_SNAPSHOT (NEW — periodic snapshot fact)
+### FCT_PRO_BUSINESS_MASTER_SNAPSHOT (NEW — periodic snapshot fact)
 
 ```sql
 -- This captures the dealer's numeric profile at current point in time.
 -- In production, this would be materialized as a TABLE with daily inserts (append-only).
 -- For POC, it's a view showing current state.
-CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT AS
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_PRO_BUSINESS_MASTER_SNAPSHOT AS
 WITH dealer AS (
     SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_BUSINESSES
 ),
@@ -298,13 +298,13 @@ LEFT JOIN sub_counts sc ON d.pro_business_id = sc.pro_business_id
 LEFT JOIN contact_counts cc ON d.pro_business_id = cc.pro_business_id;
 ```
 
-### OBT_DEALER_PROFILE (RENAMED — BI consumption layer)
+### OBT_PRO_BUSINESS_MASTER_PROFILE (RENAMED — BI consumption layer)
 
 ```sql
 -- This is the EXISTING DIM_PRO_BUSINESS_MASTER, just renamed.
 -- It's NOT a dimension. It's a One Big Table for BI tools.
--- Joins DIM_PRO_BUSINESS_MASTER attributes + FCT_DEALER_SNAPSHOT measures in one wide row.
-CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.MARTS.OBT_DEALER_PROFILE AS
+-- Joins DIM_PRO_BUSINESS_MASTER attributes + FCT_PRO_BUSINESS_MASTER_SNAPSHOT measures in one wide row.
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.MARTS.OBT_PRO_BUSINESS_MASTER_PROFILE AS
 SELECT
     d.*,
     f.total_distributor_count,
@@ -322,7 +322,7 @@ SELECT
     f.days_since_last_login,
     f.health_status
 FROM ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_BUSINESS_MASTER d
-LEFT JOIN ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT f
+LEFT JOIN ANALYTICS_DB_DEV.FACTS.FCT_PRO_BUSINESS_MASTER_SNAPSHOT f
     ON d.pro_business_id = f.pro_business_id;
     ON d.pro_business_id = f.pro_business_id;
 ```
@@ -334,14 +334,14 @@ LEFT JOIN ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT f
 ```sql
 CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.BRIDGE_PRO_CONTACT_BUSINESS AS
 SELECT DISTINCT
-    PARSE_JSON(C2):detail.data.proBusinessId::STRING AS pro_business_id,
-    PARSE_JSON(C2):detail.data.primaryContact.proContactId::STRING AS pro_contact_id,
+    PARSE_JSON(RECORD_CONTENT):detail.data.proBusinessId::STRING AS pro_business_id,
+    PARSE_JSON(RECORD_CONTENT):detail.data.primaryContact.proContactId::STRING AS pro_contact_id,
     'PRIMARY_CONTACT' AS relationship_type
 FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
-WHERE C1 != 'RECORD_METADATA'
-  AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
-  AND PARSE_JSON(C2):detail.data.primaryContact.proContactId IS NOT NULL
-  AND PARSE_JSON(C2):detail.data.proBusinessId IS NOT NULL;
+WHERE RECORD_METADATA != 'RECORD_METADATA'
+  AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING LIKE '%pro-business-master%'
+  AND PARSE_JSON(RECORD_CONTENT):detail.data.primaryContact.proContactId IS NOT NULL
+  AND PARSE_JSON(RECORD_CONTENT):detail.data.proBusinessId IS NOT NULL;
 ```
 
 **Why it exists:** 99% of `pro-contact-master.*` events have NULL `proBusinessId`. The only place the contact↔dealer link is recorded is inside `pro-business-master.*` events as `primaryContact.proContactId`. This bridge extracts that relationship so `DIM_PRO_CONTACT_MASTER` can resolve its FK to the dealer.
@@ -478,15 +478,15 @@ FROM (
 );
 ```
 
-### FCT_DEALER_EVENTS
+### FCT_PRO_BUSINESS_MASTER_EVENTS
 
 ```sql
-CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_DEALER_EVENTS AS
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_PRO_BUSINESS_MASTER_EVENTS AS
 WITH source AS (
-    SELECT PARSE_JSON(C1) AS metadata_json, PARSE_JSON(C2) AS payload
+    SELECT PARSE_JSON(RECORD_METADATA) AS metadata_json, PARSE_JSON(RECORD_CONTENT) AS payload
     FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
-    WHERE C1 != 'RECORD_METADATA'
-      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
+    WHERE RECORD_METADATA != 'RECORD_METADATA'
+      AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING LIKE '%pro-business-master%'
 ),
 parsed AS (
     SELECT
@@ -526,15 +526,15 @@ SELECT * FROM parsed
 QUALIFY ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY kafka_offset DESC) = 1;
 ```
 
-### FCT_CONTACT_EVENTS
+### FCT_PRO_CONTACT_MASTER_EVENTS
 
 ```sql
-CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS AS
+CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_PRO_CONTACT_MASTER_EVENTS AS
 WITH source AS (
-    SELECT PARSE_JSON(C1) AS metadata_json, PARSE_JSON(C2) AS payload
+    SELECT PARSE_JSON(RECORD_METADATA) AS metadata_json, PARSE_JSON(RECORD_CONTENT) AS payload
     FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
-    WHERE C1 != 'RECORD_METADATA'
-      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-contact-master%'
+    WHERE RECORD_METADATA != 'RECORD_METADATA'
+      AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING LIKE '%pro-contact-master%'
 ),
 parsed AS (
     SELECT
@@ -568,10 +568,10 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY kafka_offset DESC) = 1
 ```sql
 CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_LEAD_FUNNEL AS
 WITH source AS (
-    SELECT PARSE_JSON(C1) AS metadata_json, PARSE_JSON(C2) AS payload
+    SELECT PARSE_JSON(RECORD_METADATA) AS metadata_json, PARSE_JSON(RECORD_CONTENT) AS payload
     FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
-    WHERE C1 != 'RECORD_METADATA'
-      AND PARSE_JSON(C2):"detail-type"::STRING IN (
+    WHERE RECORD_METADATA != 'RECORD_METADATA'
+      AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING IN (
           'fluidrapro.pro-business-master.created.v1',
           'fluidrapro.pro-business-master.approved.v1',
           'fluidrapro.pro-business-master.rejected.v1',
@@ -657,17 +657,17 @@ FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_RECONCILIATION;
 ┌─────────────────────────────────────────────────────────────┐
 │  FACTS (Measures Only)                                       │
 ├─────────────────────────────────────────────────────────────┤
-│  FCT_DEALER_EVENTS   │ Event grain: what happened to dealer  │
-│  FCT_CONTACT_EVENTS  │ Event grain: what happened to contact │
+│  FCT_PRO_BUSINESS_MASTER_EVENTS   │ Event grain: what happened to dealer  │
+│  FCT_PRO_CONTACT_MASTER_EVENTS  │ Event grain: what happened to contact │
 │  FCT_LEAD_FUNNEL     │ Event grain: funnel transitions       │
-│  FCT_DEALER_SNAPSHOT │ Periodic: dealer profile metrics NOW  │
+│  FCT_PRO_BUSINESS_MASTER_SNAPSHOT │ Periodic: dealer profile metrics NOW  │
 │  FCT_RECONCILIATION  │ Event grain: data ops runs            │
 └─────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────┐
 │  CONSUMPTION (BI Layer)                                      │
 ├─────────────────────────────────────────────────────────────┤
-│  OBT_DEALER_PROFILE  │ Wide table = DIM + Snapshot joined    │
+│  OBT_PRO_BUSINESS_MASTER_PROFILE  │ Wide table = DIM + Snapshot joined    │
 │  METRIC_*            │ Pre-aggregated KPIs                   │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -678,7 +678,7 @@ FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_RECONCILIATION;
 
 | Principle | Implementation |
 |-----------|---------------|
-| Dims have NO measures | All counts moved to FCT_DEALER_SNAPSHOT |
+| Dims have NO measures | All counts moved to FCT_PRO_BUSINESS_MASTER_SNAPSHOT |
 | Facts have FK + measures | Numeric fields only + degenerate dims |
 | Snapshot enables trends | Daily insert → "how did health change over time?" |
 | OBT is for BI, not modeling | Clearly labeled as consumption layer |
@@ -691,7 +691,7 @@ FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_RECONCILIATION;
 ### What We Have
 
 ```
-FCT_DEALER_EVENTS ──→ DIM_PRO_BUSINESS_MASTER (hop 1)
+FCT_PRO_BUSINESS_MASTER_EVENTS ──→ DIM_PRO_BUSINESS_MASTER (hop 1)
                             ├── DIM_PRO_CONTACT_MASTER (hop 2)
                             ├── DIM_PRO_BUSINESS_LOCATION_MASTER (hop 2)
                             ├── DIM_PRO_ASSOCIATED_DISTRIBUTOR (hop 2)
@@ -724,9 +724,9 @@ FCT_DEALER_EVENTS ──→ DIM_PRO_BUSINESS_MASTER (hop 1)
 ### Where It IS Star-Shaped
 
 The fact-to-central-dim relationships ARE star:
-- `FCT_DEALER_EVENTS → DIM_PRO_BUSINESS_MASTER` (1 hop, star)
-- `FCT_DEALER_EVENTS → DIM_DATE` (1 hop, star)
-- `FCT_CONTACT_EVENTS → DIM_PRO_CONTACT_MASTER` (1 hop, star)
+- `FCT_PRO_BUSINESS_MASTER_EVENTS → DIM_PRO_BUSINESS_MASTER` (1 hop, star)
+- `FCT_PRO_BUSINESS_MASTER_EVENTS → DIM_DATE` (1 hop, star)
+- `FCT_PRO_CONTACT_MASTER_EVENTS → DIM_PRO_CONTACT_MASTER` (1 hop, star)
 - `FCT_LEAD_FUNNEL → DIM_PRO_BUSINESS_MASTER` (1 hop, star)
 
 The snowflake extension only occurs for child-entity sub-dims.
@@ -741,7 +741,7 @@ The snowflake extension only occurs for child-entity sub-dims.
 
 ```sql
 SELECT COUNT(DISTINCT f.pro_business_id) AS active_dealers_30d
-FROM ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT f
+FROM ANALYTICS_DB_DEV.FACTS.FCT_PRO_BUSINESS_MASTER_SNAPSHOT f
 WHERE f.days_since_last_login <= 30
   AND f.health_status = 'HEALTHY';
 ```
@@ -767,7 +767,7 @@ WHERE d.login_status = 'PENDING';
 
 ```sql
 SELECT COUNT(DISTINCT f.pro_business_id) AS inactive_dealers
-FROM ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT f
+FROM ANALYTICS_DB_DEV.FACTS.FCT_PRO_BUSINESS_MASTER_SNAPSHOT f
 JOIN ANALYTICS_DB_DEV.DIMENSIONS.DIM_PRO_BUSINESS_MASTER d
     ON f.pro_business_id = d.pro_business_id
 WHERE d.login_status = 'ACTIVE'
@@ -778,12 +778,12 @@ WHERE d.login_status = 'ACTIVE'
 
 ```sql
 SELECT COUNT(*) AS new_dealers_created
-FROM ANALYTICS_DB_DEV.FACTS.FCT_DEALER_EVENTS
+FROM ANALYTICS_DB_DEV.FACTS.FCT_PRO_BUSINESS_MASTER_EVENTS
 WHERE is_created_event = 1;
 
 -- By period:
 SELECT event_date, COUNT(*) AS new_dealers
-FROM ANALYTICS_DB_DEV.FACTS.FCT_DEALER_EVENTS
+FROM ANALYTICS_DB_DEV.FACTS.FCT_PRO_BUSINESS_MASTER_EVENTS
 WHERE is_created_event = 1
 GROUP BY event_date
 ORDER BY event_date;
@@ -860,7 +860,7 @@ WHERE login_status = 'ACTIVE';
 
 ```sql
 SELECT COUNT(DISTINCT pro_contact_id) AS new_technicians
-FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS
+FROM ANALYTICS_DB_DEV.FACTS.FCT_PRO_CONTACT_MASTER_EVENTS
 WHERE is_created_event = 1
   AND contact_type = 'TECHNICIAN';
 ```
@@ -870,12 +870,12 @@ WHERE is_created_event = 1
 ```sql
 WITH created AS (
     SELECT DISTINCT pro_contact_id
-    FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS
+    FROM ANALYTICS_DB_DEV.FACTS.FCT_PRO_CONTACT_MASTER_EVENTS
     WHERE is_created_event = 1
 ),
 login_done AS (
     SELECT DISTINCT pro_contact_id
-    FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS
+    FROM ANALYTICS_DB_DEV.FACTS.FCT_PRO_CONTACT_MASTER_EVENTS
     WHERE is_login_created_event = 1
 )
 SELECT COUNT(*) AS users_never_setup
@@ -897,13 +897,13 @@ WHERE login_status = 'ACTIVE'
 ```sql
 WITH created AS (
     SELECT pro_contact_id, MIN(event_time) AS created_time
-    FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS
+    FROM ANALYTICS_DB_DEV.FACTS.FCT_PRO_CONTACT_MASTER_EVENTS
     WHERE is_created_event = 1
     GROUP BY pro_contact_id
 ),
 login_done AS (
     SELECT pro_contact_id, MIN(event_time) AS login_time
-    FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS
+    FROM ANALYTICS_DB_DEV.FACTS.FCT_PRO_CONTACT_MASTER_EVENTS
     WHERE is_login_created_event = 1
     GROUP BY pro_contact_id
 )
@@ -919,11 +919,11 @@ JOIN login_done l ON c.pro_contact_id = l.pro_contact_id;
 ```sql
 WITH created AS (
     SELECT COUNT(DISTINCT pro_contact_id) AS cnt
-    FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS WHERE is_created_event = 1
+    FROM ANALYTICS_DB_DEV.FACTS.FCT_PRO_CONTACT_MASTER_EVENTS WHERE is_created_event = 1
 ),
 login_done AS (
     SELECT COUNT(DISTINCT pro_contact_id) AS cnt
-    FROM ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS WHERE is_login_created_event = 1
+    FROM ANALYTICS_DB_DEV.FACTS.FCT_PRO_CONTACT_MASTER_EVENTS WHERE is_login_created_event = 1
 )
 SELECT
     login_done.cnt AS logins_completed,
@@ -937,7 +937,7 @@ FROM created, login_done;
 ```sql
 SELECT
     ROUND(AVG(active_contacts), 1) AS avg_active_users_per_dealer
-FROM ANALYTICS_DB_DEV.FACTS.FCT_DEALER_SNAPSHOT
+FROM ANALYTICS_DB_DEV.FACTS.FCT_PRO_BUSINESS_MASTER_SNAPSHOT
 WHERE active_contacts > 0;
 ```
 
@@ -962,19 +962,19 @@ FROM ANALYTICS_DB_DEV.FACTS.FCT_LEAD_FUNNEL;
 
 | KPI | Fact Table | Dim Joined | Measure Used |
 |:---:|-----------|-----------|-------------|
-| 1.1 | FCT_DEALER_SNAPSHOT | DIM_PRO_BUSINESS_MASTER | `days_since_last_login` |
+| 1.1 | FCT_PRO_BUSINESS_MASTER_SNAPSHOT | DIM_PRO_BUSINESS_MASTER | `days_since_last_login` |
 | 1.2 | — (dim only) | DIM_PRO_BUSINESS_MASTER | `rewards_program_status` filter |
 | 1.3 | — (dim only) | DIM_PRO_BUSINESS_MASTER | `login_status` filter |
-| 1.4 | FCT_DEALER_SNAPSHOT | DIM_PRO_BUSINESS_MASTER | `days_since_last_login` |
-| 1.5 | FCT_DEALER_EVENTS | — | `is_created_event` |
+| 1.4 | FCT_PRO_BUSINESS_MASTER_SNAPSHOT | DIM_PRO_BUSINESS_MASTER | `days_since_last_login` |
+| 1.5 | FCT_PRO_BUSINESS_MASTER_EVENTS | — | `is_created_event` |
 | 2.1 | FCT_LEAD_FUNNEL | — | `funnel_stage` count |
 | 2.2 | FCT_LEAD_FUNNEL | — | `funnel_stage` ratio |
 | 2.3 | FCT_LEAD_FUNNEL | — | `seconds_in_stage` |
 | 2.4 | FCT_LEAD_FUNNEL | DIM_PRO_BUSINESS_MASTER | `rewards_signup_date` |
 | 3.1 | — (dim only) | DIM_PRO_CONTACT_MASTER | `login_status` filter |
-| 3.2 | FCT_CONTACT_EVENTS | — | `is_created_event` + `contact_type` |
-| 3.3 | FCT_CONTACT_EVENTS | — | absence of `is_login_created_event` |
+| 3.2 | FCT_PRO_CONTACT_MASTER_EVENTS | — | `is_created_event` + `contact_type` |
+| 3.3 | FCT_PRO_CONTACT_MASTER_EVENTS | — | absence of `is_login_created_event` |
 | 3.4 | — (dim only) | DIM_PRO_CONTACT_MASTER | `last_login_date` staleness |
-| 3.5 | FCT_CONTACT_EVENTS | — | time between created and login-created |
-| 3.6 | FCT_CONTACT_EVENTS | — | ratio of login-created / created |
-| 3.7 | FCT_DEALER_SNAPSHOT | — | `active_contacts` |
+| 3.5 | FCT_PRO_CONTACT_MASTER_EVENTS | — | time between created and login-created |
+| 3.6 | FCT_PRO_CONTACT_MASTER_EVENTS | — | ratio of login-created / created |
+| 3.7 | FCT_PRO_BUSINESS_MASTER_SNAPSHOT | — | `active_contacts` |

@@ -15,14 +15,14 @@
 
 WITH source AS (
     SELECT
-        PARSE_JSON(C1) AS metadata_json,
-        PARSE_JSON(C2) AS payload
+        PARSE_JSON(RECORD_METADATA) AS metadata_json,
+        PARSE_JSON(RECORD_CONTENT) AS payload
     FROM {{ source('fluidrapro_raw', 'fpro_qa') }}
-    WHERE C1 != 'RECORD_METADATA'
-      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
-      AND PARSE_JSON(C2):detail.data.proBusinessId IS NOT NULL
-      AND PARSE_JSON(C2):detail.data.subscriptions IS NOT NULL
-      AND ARRAY_SIZE(PARSE_JSON(C2):detail.data.subscriptions) > 0
+    WHERE RECORD_METADATA != 'RECORD_METADATA'
+      AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING LIKE '%pro-business-master%'
+      AND PARSE_JSON(RECORD_CONTENT):detail.data.proBusinessId IS NOT NULL
+      AND PARSE_JSON(RECORD_CONTENT):detail.data.subscriptions IS NOT NULL
+      AND ARRAY_SIZE(PARSE_JSON(RECORD_CONTENT):detail.data.subscriptions) > 0
 ),
 
 flattened AS (

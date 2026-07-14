@@ -10,13 +10,13 @@ WITH contact_standalone AS (
 ),
 bridge AS (
     SELECT DISTINCT
-        PARSE_JSON(C2):detail.data.proBusinessId::STRING AS pro_business_id,
-        PARSE_JSON(C2):detail.data.primaryContact.proContactId::STRING AS pro_contact_id
+        PARSE_JSON(RECORD_CONTENT):detail.data.proBusinessId::STRING AS pro_business_id,
+        PARSE_JSON(RECORD_CONTENT):detail.data.primaryContact.proContactId::STRING AS pro_contact_id
     FROM {{ source('fluidrapro_raw', 'fpro_qa') }}
-    WHERE C1 != 'RECORD_METADATA'
-      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
-      AND PARSE_JSON(C2):detail.data.primaryContact.proContactId IS NOT NULL
-      AND PARSE_JSON(C2):detail.data.proBusinessId IS NOT NULL
+    WHERE RECORD_METADATA != 'RECORD_METADATA'
+      AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING LIKE '%pro-business-master%'
+      AND PARSE_JSON(RECORD_CONTENT):detail.data.primaryContact.proContactId IS NOT NULL
+      AND PARSE_JSON(RECORD_CONTENT):detail.data.proBusinessId IS NOT NULL
 )
 SELECT
     c.pro_contact_id,

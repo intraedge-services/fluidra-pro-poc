@@ -18,7 +18,7 @@ sources:
       - name: fpro_qa
         description: "Fluidra Pro QA environment CDC events (full scenario coverage)"
         columns:
-          - name: C1
-            description: "RECORD_METADATA JSON (topic, partition, offset, key, CreateTime)"
-          - name: C2
-            description: "RECORD_CONTENT JSON (full event payload)"
+          - name: RECORD_METADATA
+            description: "Kafka metadata JSON (topic, partition, offset, key, CreateTime)"
+          - name: RECORD_CONTENT
+            description: "Full event payload JSON from Fluidra Pro Platform"

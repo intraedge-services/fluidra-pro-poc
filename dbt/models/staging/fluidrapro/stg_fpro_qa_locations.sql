@@ -7,12 +7,12 @@
 
 WITH source AS (
     SELECT
-        PARSE_JSON(C1) AS metadata_json,
-        PARSE_JSON(C2) AS payload
+        PARSE_JSON(RECORD_METADATA) AS metadata_json,
+        PARSE_JSON(RECORD_CONTENT) AS payload
     FROM {{ source('fluidrapro_raw', 'fpro_qa') }}
-    WHERE C1 != 'RECORD_METADATA'
-      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-location-master%'
-      AND PARSE_JSON(C2):detail.data.proLocationId IS NOT NULL
+    WHERE RECORD_METADATA != 'RECORD_METADATA'
+      AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING LIKE '%pro-location-master%'
+      AND PARSE_JSON(RECORD_CONTENT):detail.data.proLocationId IS NOT NULL
 ),
 parsed AS (
     SELECT

@@ -306,13 +306,13 @@ CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.DIM_CONTACT AS
 WITH contact_standalone AS (SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_CONTACTS),
 bridge AS (
     SELECT DISTINCT
-        PARSE_JSON(C2):detail.data.proBusinessId::STRING AS pro_business_id,
-        PARSE_JSON(C2):detail.data.primaryContact.proContactId::STRING AS pro_contact_id
+        PARSE_JSON(RECORD_CONTENT):detail.data.proBusinessId::STRING AS pro_business_id,
+        PARSE_JSON(RECORD_CONTENT):detail.data.primaryContact.proContactId::STRING AS pro_contact_id
     FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
-    WHERE C1 != 'RECORD_METADATA'
-      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
-      AND PARSE_JSON(C2):detail.data.primaryContact.proContactId IS NOT NULL
-      AND PARSE_JSON(C2):detail.data.proBusinessId IS NOT NULL
+    WHERE RECORD_METADATA != 'RECORD_METADATA'
+      AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING LIKE '%pro-business-master%'
+      AND PARSE_JSON(RECORD_CONTENT):detail.data.primaryContact.proContactId IS NOT NULL
+      AND PARSE_JSON(RECORD_CONTENT):detail.data.proBusinessId IS NOT NULL
 )
 SELECT c.*,
     COALESCE(c.pro_business_id, b.pro_business_id) AS resolved_pro_business_id,
@@ -354,14 +354,14 @@ SELECT * FROM ANALYTICS_DB_DEV.INTERMEDIATE.STG_FPRO_QA_LOCATIONS;
 -- BRIDGE_CONTACT_DEALER
 CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.DIMENSIONS.BRIDGE_CONTACT_DEALER AS
 SELECT DISTINCT
-    PARSE_JSON(C2):detail.data.proBusinessId::STRING AS pro_business_id,
-    PARSE_JSON(C2):detail.data.primaryContact.proContactId::STRING AS pro_contact_id,
+    PARSE_JSON(RECORD_CONTENT):detail.data.proBusinessId::STRING AS pro_business_id,
+    PARSE_JSON(RECORD_CONTENT):detail.data.primaryContact.proContactId::STRING AS pro_contact_id,
     'PRIMARY_CONTACT' AS relationship_type
 FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
-WHERE C1 != 'RECORD_METADATA'
-  AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
-  AND PARSE_JSON(C2):detail.data.primaryContact.proContactId IS NOT NULL
-  AND PARSE_JSON(C2):detail.data.proBusinessId IS NOT NULL;
+WHERE RECORD_METADATA != 'RECORD_METADATA'
+  AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING LIKE '%pro-business-master%'
+  AND PARSE_JSON(RECORD_CONTENT):detail.data.primaryContact.proContactId IS NOT NULL
+  AND PARSE_JSON(RECORD_CONTENT):detail.data.proBusinessId IS NOT NULL;
 ```
 
 ---

@@ -174,10 +174,10 @@ ANALYTICS_DB_DEV
 ```sql
 CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_DEALER_EVENTS AS
 WITH source AS (
-    SELECT PARSE_JSON(C1) AS metadata_json, PARSE_JSON(C2) AS payload
+    SELECT PARSE_JSON(RECORD_METADATA) AS metadata_json, PARSE_JSON(RECORD_CONTENT) AS payload
     FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
-    WHERE C1 != 'RECORD_METADATA'
-      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-business-master%'
+    WHERE RECORD_METADATA != 'RECORD_METADATA'
+      AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING LIKE '%pro-business-master%'
 ),
 parsed AS (
     SELECT
@@ -210,10 +210,10 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY kafka_offset DESC) = 1
 ```sql
 CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_CONTACT_EVENTS AS
 WITH source AS (
-    SELECT PARSE_JSON(C1) AS metadata_json, PARSE_JSON(C2) AS payload
+    SELECT PARSE_JSON(RECORD_METADATA) AS metadata_json, PARSE_JSON(RECORD_CONTENT) AS payload
     FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
-    WHERE C1 != 'RECORD_METADATA'
-      AND PARSE_JSON(C2):"detail-type"::STRING LIKE '%pro-contact-master%'
+    WHERE RECORD_METADATA != 'RECORD_METADATA'
+      AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING LIKE '%pro-contact-master%'
 ),
 parsed AS (
     SELECT
@@ -240,10 +240,10 @@ QUALIFY ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY kafka_offset DESC) = 1
 ```sql
 CREATE OR REPLACE VIEW ANALYTICS_DB_DEV.FACTS.FCT_LEAD_FUNNEL AS
 WITH source AS (
-    SELECT PARSE_JSON(C1) AS metadata_json, PARSE_JSON(C2) AS payload
+    SELECT PARSE_JSON(RECORD_METADATA) AS metadata_json, PARSE_JSON(RECORD_CONTENT) AS payload
     FROM RAW_DB_PROD.FLUIDRAPRO_RAW.FPRO_QA
-    WHERE C1 != 'RECORD_METADATA'
-      AND PARSE_JSON(C2):"detail-type"::STRING IN (
+    WHERE RECORD_METADATA != 'RECORD_METADATA'
+      AND PARSE_JSON(RECORD_CONTENT):"detail-type"::STRING IN (
           'fluidrapro.pro-business-master.created.v1',
           'fluidrapro.pro-business-master.approved.v1',
           'fluidrapro.pro-business-master.rejected.v1',
