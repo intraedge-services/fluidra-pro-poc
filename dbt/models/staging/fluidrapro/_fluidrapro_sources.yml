@@ -8,7 +8,17 @@ sources:
     tables:
       - name: raw_dealers_data
         description: "Raw CDC events from Kafka topic psot_poolpro_inbound"
-        loaded_at_field: EVENT_TIME
-        freshness:
-          warn_after: {count: 2, period: hour}
-          error_after: {count: 6, period: hour}
+        columns:
+          - name: RECORD_METADATA
+            description: "Kafka metadata (topic, partition, offset, key, CreateTime)"
+          - name: RECORD_CONTENT
+            description: "Full event payload JSON from Fluidra Pro Platform"
+          - name: EVENT_TIME
+            description: "Event timestamp"
+      - name: fpro_qa
+        description: "Fluidra Pro QA environment CDC events (full scenario coverage)"
+        columns:
+          - name: C1
+            description: "RECORD_METADATA JSON (topic, partition, offset, key, CreateTime)"
+          - name: C2
+            description: "RECORD_CONTENT JSON (full event payload)"
